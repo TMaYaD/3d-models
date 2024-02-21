@@ -65,6 +65,7 @@ charger_w = 75;
 charger_h = 15;
 
 module charger() {
+    color("gray")
     roundedcube([charger_l, charger_w, charger_h], center = true, radius = 4);
 }
 
@@ -81,6 +82,7 @@ usb_c_adapter_offset1 = 1.2;
 
 
 module usb_c_adapter() {
+    color("red")
     roundedcube([usb_c_adapter_w1, usb_c_adapter_h1, usb_c_adapter_l1], true, usb_c_adapter_h1/2, "z");
     
     // Extension for hole in base
@@ -91,15 +93,39 @@ module usb_c_adapter() {
       roundedcube([usb_c_adapter_l2+usb_c_adapter_w1/2, usb_c_adapter_h2, usb_c_adapter_w2], true, usb_c_adapter_h2/2, "xmax");
 }
 
+usb_a_connector_x = 24;
+usb_a_connector_y = 16;
+usb_a_connector_z = 30.2;
+usb_a_connector_bridge_x = 0; //7.5;
+usb_a_connector_bridge_z = 2.6;
+
+
+module usb_a_adapter() {
+        color("blue")
+    difference() {
+        cube([usb_a_connector_x, usb_a_connector_y, usb_a_connector_z], true);
+        translate([0,0,usb_a_connector_bridge_z])
+          cube([usb_a_connector_bridge_x, usb_a_connector_y + .1, usb_a_connector_z - 2 * usb_a_connector_bridge_z + .1], true);
+    }
+}
+
+
 charger_usb_c_connector_offset1 = 15;
 charger_usb_c_connector_offset2 = 4.8;
 
+charger_usb_a_connector_offset_x = 8.4;
+charger_usb_a_connector_offset_y = 14.6;
+charger_usb_a_connector_offset_z = 5;
 
 module charger_with_adapter() {
     charger();
     translate([-charger_l/2-charger_usb_c_connector_offset1+6, -charger_w/2+usb_c_adapter_l1/2+charger_usb_c_connector_offset2, 0])
       rotate([-90, 0, 0])
       usb_c_adapter();
+    
+    translate([-charger_l/2-charger_usb_a_connector_offset_x+usb_a_connector_z/2, charger_w/2-charger_usb_a_connector_offset_y-usb_a_connector_y/2,charger_h/2-charger_usb_a_connector_offset_z-usb_a_connector_x/2])
+      rotate([0, 90, 0])
+      usb_a_adapter();
 }
 
 base_l1 = 45;
@@ -110,6 +136,7 @@ base_h2 = 21;
 base_r = 4;
 
 module base() {
+    color("black")
     roundedcube([base_l1, base_w, base_h1], center = true, radius=base_r, apply_to="all");
     rotate([0,7,0])
         translate([0,0,9.5])
@@ -134,11 +161,13 @@ module base() {
 phone_offset = 3;
 
 module phone() {
+    color("white")
     roundedcube([charger_l + phone_offset * 2, base_w, charger_h], center=true, radius=2, apply_to="y");
 }
 
 difference() {
   union() {
+    color("black")
     base();
     translate([23,0,30])
       rotate([0, -60, 0])

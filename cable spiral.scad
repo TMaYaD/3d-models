@@ -26,23 +26,29 @@ cutout_clear = 0.1; // Add to all cutouts on face.
 module base(){
     cylinder(
         h = (base_height),
-        r = base_r,
-        center = true
+        r = base_r
     );
 }
 
 module core_cutout(){
 //    translate([0, 0, base_thickness/2])
 //        cylinder(h=wall_height + cutout_clear, r = core_r, center = true);
-    translate([0, (base_r+core_r)/2, base_thickness/2])
-        cube([core_r, base_r-core_r, wall_height+cutout_clear], center = true);
-    rotate([0, 0,  90]) translate([0, (base_r+core_r)/2, base_thickness/2])
-        cube([core_r, base_r-core_r, wall_height+cutout_clear], center = true);    rotate([0, 0, 180]) translate([0, (base_r+core_r)/2, base_thickness/2])
-        cube([core_r, base_r-core_r, wall_height+cutout_clear], center = true);    rotate([0, 0, 270]) translate([0, (base_r+core_r)/2, base_thickness/2])
-        cube([core_r, base_r-core_r, wall_height+cutout_clear], center = true);
+        module trench(){
+            w = core_r;
+            l = base_r - core_r;
+            h = wall_height;
+            translate([0, (base_r+core_r)/2, base_height-h/2])
+                cube([w, l, h + cutout_clear], center = true);
+        }
+
+    rotate([0, 0,   0]) trench();
+    rotate([0, 0,  90]) trench();
+    rotate([0, 0, 180]) trench();
+    rotate([0, 0, 270]) trench();
 }
 
 module cable_cutout() {
+    translate([0, cable_dia/2, base_thickness/2])
     hull() {
                                        circle(d = cable_dia);
         translate([0, cable_dia/3, 0]) circle(d = cable_dia);
@@ -50,7 +56,7 @@ module cable_cutout() {
 }
 
 module spiral(){
-    translate([0, 0, base_thickness/2])
+    translate([0, 0, base_thickness])
         rotate_extrude() {
             for(i=[1 : loops]){
                 translate([(core_loops+i) * step_r - cable_dia/2, 0, 0])
@@ -61,21 +67,20 @@ module spiral(){
 
 
 module clip() {
-    // top
-    translate([0, 0, base_height/2])
-        cube([core_r, base_r*2, base_thickness], center = true);
-    // left wall
-    translate([0, base_r-wall_thickness/2, 0])
-        cube([core_r, wall_thickness, base_thickness * 3 + wall_height], center = true);
-    // right wall
-    translate([0, -(base_r-wall_thickness/2), 0])
-        cube([core_r, wall_thickness, base_thickness * 3 + wall_height], center = true);
-    // left catch
-    translate([0, base_r-step_r/2, -(base_height/2)])
-        cube([core_r, step_r, base_thickness], center = true);
-    // right catch
-    translate([0, -(base_r-step_r/2), -(base_height/2)])
-        cube([core_r, step_r, base_thickness], center = true);
+    w = core_r;
+    l = 2 * base_r;
+    t = wall_thickness;
+    h = base_height+2*t;
+
+    difference() {
+        translate([0, 0, h/2 - t]) intersection() {
+            cube([w, l, h], center = true);
+            cylinder(h = h, d = l, center = true);
+        }
+
+        cylinder(h = base_height, d = l - 2*t);
+        translate([0, 0, -t]) cylinder(h = t, d = l - 2 * step_r);
+    }
 }
 
 module clip_cutout() {
@@ -86,14 +91,13 @@ module clip_cutout() {
 }
 
 module top_connector() {
-        translate([0, 0, (base_height)/2])
-            rotate([0, 180, 0])
-            connector_cutout();
+    translate([0, 0, base_height])
+        rotate([0, 180, 0])
+        connector_cutout();
 }
 
 module bottom_connector() {
-        translate([0, 0, -(base_height)/2])
-            connector_cutout();
+    connector_cutout();
 }
 
 module honeycomb() {
@@ -103,7 +107,7 @@ module honeycomb() {
     outer_size = ((size+wall_thickness)/sin(60))/2;
 //    outer_hex_radius = outerhexradius(outer_size, bounds);
 
-    render() translate([0,0,-(base_height)/2])
+    render() // translate([0,0,-(base_height)/2])
         intersection() {
             difference() {
                 cylinder(h = base_height, r = base_r-step_r);
@@ -119,22 +123,12 @@ difference() {
                          spiral();
                          clip_cutout();
         rotate([0,0,90]) clip_cutout();
-        top_connector();
-        // bottom_connector();
-        honeycomb();
+                         top_connector();
+                         // bottom_connector();
+                         honeycomb();
 
 }
-//
-//color("red", 0.5) {
+
+color("red") {
 //    rotate([0,0,90]) clip();
-//}
-
-//color("blue") {
-//        translate([0, 0, (base_height)/2])
-//            rotate([0, 180, 0])
-//            connector_cutout();
-//}
-
-// color("orange", 0.5) {
-//     honeycomb();
-// }
+}

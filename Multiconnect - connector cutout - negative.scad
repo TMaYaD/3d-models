@@ -26,9 +26,14 @@ module connector_cutout() {
             connector();
             rotate([-90, 0, 0]) linear_extrude(l) projection() rotate([90, 0, 0]) connector();
         }
-        
+
         translate([0, 0, t1+t2+t3-hh/2+.01]) cylinder(h = hh+.01, r1 = 0, r2 = hr+.01, center = true);
     }
 }
 
 connector_cutout();
+
+function connector_cutout_height() = t1 + t2 + t3;
+function connector_cutout_radius() = r2;
+function cell_size() = 25;
+

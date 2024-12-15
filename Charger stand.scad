@@ -1,5 +1,5 @@
 // Higher definition curves
-$fs = 0.01;
+$fn = $preview ? 32 : 64;
 
 module roundedcube(size = [1, 1, 1], center = false, radius = 0.5, apply_to = "all") {
 	// If single value, convert to [x, y, z] vector
@@ -46,7 +46,7 @@ module roundedcube(size = [1, 1, 1], center = false, radius = 0.5, apply_to = "a
 						) {
 							build_point("sphere");
 						} else {
-							rotate = 
+							rotate =
 								(apply_to == "xmin" || apply_to == "xmax" || apply_to == "x") ? [0, 90, 0] : (
 								(apply_to == "ymin" || apply_to == "ymax" || apply_to == "y") ? [90, 90, 0] :
 								[0, 0, 0]
@@ -70,31 +70,33 @@ module charger() {
 }
 
 usb_c_adapter_l1 = 21.6;
-usb_c_adapter_w1 = 12.7;
-usb_c_adapter_h1 = 8.2;
+usb_c_adapter_w1 = 13;
+usb_c_adapter_h1 = 9;
 
-usb_c_adapter_l2 = 8.2;
+usb_c_adapter_l2 = 9;
 usb_c_adapter_w2 = 10+50;
-usb_c_adapter_h2 = 4.4;
+usb_c_adapter_h2 = 5;
 
 usb_c_adapter_offset1 = 1.2;
 
 
 
 module usb_c_adapter() {
-    color("red")
+    // Female connector end
     roundedcube([usb_c_adapter_w1, usb_c_adapter_h1, usb_c_adapter_l1], true, usb_c_adapter_h1/2, "z");
-    
+
     // Extension for hole in base
+    color("red")
     translate([0, 0, - usb_c_adapter_l1])
       roundedcube([usb_c_adapter_w1, usb_c_adapter_h1, usb_c_adapter_l1], true, usb_c_adapter_h1/2, "z");
-    
+
+    // usb c male connector
     translate([(usb_c_adapter_l2+usb_c_adapter_w1/2)/2, 0, usb_c_adapter_l1/2 - usb_c_adapter_w2/2 - usb_c_adapter_offset1])
       roundedcube([usb_c_adapter_l2+usb_c_adapter_w1/2, usb_c_adapter_h2, usb_c_adapter_w2], true, usb_c_adapter_h2/2, "xmax");
 }
 
 usb_a_connector_x = 24;
-usb_a_connector_y = 16;
+usb_a_connector_y = 16.1;
 usb_a_connector_z = 30.2;
 usb_a_connector_bridge_x = 0; //7.5;
 usb_a_connector_bridge_z = 2.6;
@@ -122,7 +124,7 @@ module charger_with_adapter() {
     translate([-charger_l/2-charger_usb_c_connector_offset1+6, -charger_w/2+usb_c_adapter_l1/2+charger_usb_c_connector_offset2, 0])
       rotate([-90, 0, 0])
       usb_c_adapter();
-    
+
     translate([-charger_l/2-charger_usb_a_connector_offset_x+usb_a_connector_z/2, charger_w/2-charger_usb_a_connector_offset_y-usb_a_connector_y/2,charger_h/2-charger_usb_a_connector_offset_z-usb_a_connector_x/2])
       rotate([0, 90, 0])
       usb_a_adapter();
@@ -147,7 +149,7 @@ module base() {
               faces=[[0,1,2,3],[5,4,3,2],[0,4,5,1],[0,3,4],[5,2,1]]
               );
         }
-    
+
     translate([base_l1/2+base_l2/2-base_r*2,base_w/2-base_h1/2,0])
         roundedcube([base_l2, base_h1, base_h1], center = true,radius=base_r, apply_to="all");
     translate([base_l1/2+base_l2/2-base_r*2,-(base_w/2-base_h1/2),0])
@@ -155,7 +157,7 @@ module base() {
     translate([base_l1/2+base_l2-base_h1,0,0])
         roundedcube([base_h1, base_w, base_h1], center = true, radius=base_r, apply_to="all");
 
-    
+
 }
 
 phone_offset = 3;

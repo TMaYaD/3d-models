@@ -1,0 +1,3 @@
+[submodule "vendor/kennetek/gridfinity-rebuilt-openscad"]
+	path = vendor/kennetek/gridfinity-rebuilt-openscad
+	url = git@github.com:kennetek/gridfinity-rebuilt-openscad.git

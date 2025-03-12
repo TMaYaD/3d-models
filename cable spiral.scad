@@ -1,7 +1,7 @@
 $fs = 0.01;
 $fa = $preview ? 6 : 3;
 use <Multiconnect - connector cutout - negative.scad>;
-use <honeycomb-lib.scad>;
+use <lib/honeycomb.scad>;
 
 cable_dia = 4;
 cable_l = 1800;

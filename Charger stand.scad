@@ -112,12 +112,12 @@ module usb_a_adapter() {
 }
 
 
-charger_usb_c_connector_offset1 = 15;
+charger_usb_c_connector_offset1 = 13;
 charger_usb_c_connector_offset2 = 4.8;
 
 charger_usb_a_connector_offset_x = 8.4;
 charger_usb_a_connector_offset_y = 14.6;
-charger_usb_a_connector_offset_z = 5;
+charger_usb_a_connector_offset_z = 4;
 
 module charger_with_adapter() {
     charger();
@@ -130,11 +130,11 @@ module charger_with_adapter() {
       usb_a_adapter();
 }
 
-base_l1 = 45;
-base_l2 = 80;
+base_l1 = 34;
+base_l2 = 80-27;
 base_w = 87.5;
 base_h1 = 11;
-base_h2 = 21;
+base_h2 = 23;
 base_r = 4;
 
 module base() {
@@ -150,6 +150,7 @@ module base() {
               );
         }
 
+    // Rear support bars
     translate([base_l1/2+base_l2/2-base_r*2,base_w/2-base_h1/2,0])
         roundedcube([base_l2, base_h1, base_h1], center = true,radius=base_r, apply_to="all");
     translate([base_l1/2+base_l2/2-base_r*2,-(base_w/2-base_h1/2),0])
@@ -171,15 +172,17 @@ difference() {
   union() {
     color("black")
     base();
-    translate([23,0,30])
-      rotate([0, -60, 0])
+    translate([16+2,0,30])
+      rotate([0, -70, 0])
           roundedcube([40, charger_w-base_r*2, 8], true, 4);
   }
-  translate([45,0,78])
-    rotate([0,-60,0])
+  translate([27+3+2,0,80+2])
+    rotate([0,-70,0])
     union() {
         charger_with_adapter();
         translate([0,0,charger_h-.1])
             phone();
     }
+translate([-base_l1*5/4, -base_w/2, base_h2-4]) cube([base_l1, base_w, base_h2]);
 }
+

@@ -3,15 +3,16 @@ $fa = $preview ? 6 : 3;
 use <Multiconnect - connector cutout - negative.scad>;
 use <lib/honeycomb.scad>;
 
-cable_dia = 4;
-cable_l = 1800;
+cable_width = 3.5;
+cable_height = 5;
+cable_l = 850;
 wall_thickness = 1.2;
-connectors = 2;
+connectors = 3;
 
 additional_connectors = connectors - 1;
 base_thickness = wall_thickness;
 
-step_r = cable_dia + wall_thickness;
+step_r = cable_width + wall_thickness;
 
 core_loops = ceil(cell_size()/2 / step_r);
 core_r = step_r * core_loops;
@@ -22,7 +23,7 @@ loops = let(
             c = -cable_l
         ) ceil((-b + sqrt(b^2 - 4 * a * c)) / (2 * a));
 
-wall_height = cable_dia;
+wall_height = cable_height;
 base_r = (core_loops + loops) * step_r + wall_thickness;
 base_height = base_thickness + wall_height;
 
@@ -53,16 +54,16 @@ module core_cutout(){
 }
 
 module cable_cutout() {
-    translate([0, cable_dia/2, base_thickness/2])
+    translate([0, cable_width/2, base_thickness/2])
     hull() {
-                                       circle(d = cable_dia);
-        translate([0, cable_dia/3, 0]) circle(d = cable_dia);
+                                       circle(d = cable_width);
+        translate([0, cable_height - 2 * cable_width/3, 0]) circle(d = cable_width);
     }
 }
 
-module cable_paths(loops) {
+module cable_cutouts(loops) {
             for(i=[1 : loops]){
-                translate([(core_loops+i) * step_r - cable_dia/2, 0, 0])
+                translate([(core_loops+i) * step_r - cable_width/2, 0, 0])
                     cable_cutout();
             }
 }
@@ -70,7 +71,7 @@ module cable_paths(loops) {
 module spiral_paths(loops){
     translate([0, 0, base_thickness])
         rotate_extrude() {
-            cable_paths(loops);
+            cable_cutouts(loops);
         }
 }
 
@@ -78,8 +79,8 @@ module parallel_paths(loops){
     translate([0, 0, base_thickness])
         rotate([90, 0, 90])
             linear_extrude(cell_size()) {
-                cable_paths(loops);
-                mirror([1,0,0]) cable_paths(loops);
+                cable_cutouts(loops);
+                mirror([1,0,0]) cable_cutouts(loops);
             }
 }
 
@@ -119,7 +120,7 @@ module bottom_connector() {
 
 module honeycomb() {
     bounds = core_loops+loops;
-    size = cable_dia;
+    size = cable_width;
     inner_size = (size/sin(60))/2;
     outer_size = ((size+wall_thickness)/sin(60))/2;
 //    outer_hex_radius = outerhexradius(outer_size, bounds);
@@ -130,7 +131,7 @@ module honeycomb() {
                 cylinder(h = base_height, r = base_r-step_r);
                 cylinder(h = base_height, r = core_r);
             }
-            hexagongrid(height=(base_thickness+cable_dia/2), boundry=bounds, outerhexradius=outer_size, innerhexradius=inner_size, orientation=0, inneronly=true );
+            hexagongrid(height=(base_thickness+cable_height/2), boundry=bounds, outerhexradius=outer_size, innerhexradius=inner_size, orientation=0, inneronly=true );
         }
 }
 
@@ -141,8 +142,8 @@ module cable_spiral_half() {
                 base();
                                 core_cutout();
                                 spiral_paths(loops);
-                                clip_cutout();
-                rotate([0,0,90]) clip_cutout();
+                //                 clip_cutout();
+                // rotate([0,0,90]) clip_cutout();
                                 top_connector();
                                 // bottom_connector();
                                 honeycomb();
@@ -157,8 +158,8 @@ module connector_section_half() {
         translate([cell_size(), 0, 0]) {
             core_cutout();
             spiral_paths(1);
-            clip_cutout();
-            rotate([0,0,90]) clip_cutout();
+            // clip_cutout();
+            // rotate([0,0,90]) clip_cutout();
             top_connector();
             honeycomb();
         }
@@ -172,6 +173,7 @@ module connector_section() {
 }
 
 translate([cell_size() * (additional_connectors), 0, 0]) cable_spiral_half();
+
 if (additional_connectors > 0) {
     for(i=[1 : (additional_connectors)]) {
         translate([cell_size()*(connectors-2*i), 0, 0])

@@ -752,9 +752,12 @@ module run_conduit_to_smb_lower() {
 module run_smb_to_stab() {
     // MCCB output bolt row, global center, on the front (+Z) face.
     mccb_out_y = (bus2_hole_y_hi - mccb2_y_in) + mccb2_y_out;
+    // Z is nudged to match stab_in_z so section 3 stays in the XY plane;
+    // the MCCB output lug accepts this ~4mm offset.
+    run_z      = stab_in_z;
     mccb_out_p = [smb_pos[0] + mccb2_w/2,
                   smb_pos[1] + mccb_out_y,
-                  smb_pos[2] + bus2_ins_t + bus2_bar_t];
+                  run_z];
 
     // Nest depth (z) -- between back sheet and wall.
     nest_z         = (smb_pos[2] - smb_back_sheet_t) / 2;
@@ -996,7 +999,7 @@ module dimensions() {
     translate(smb_pos) supply_mccb_bus();
     smb_back_sheet();
     run_conduit_to_smb_lower();
-    run_smb_to_stab();
+    !run_smb_to_stab();
     wall_panel();
     grid();
     window_cutout();
@@ -1010,7 +1013,7 @@ module dimensions() {
     supply_conduit();
     conduit_row();
 
-    !run_stab_to_dist();
+    run_stab_to_dist();
     run_solar_in();
     run_sdb_to_inv();
     run_inv_to_acdb();

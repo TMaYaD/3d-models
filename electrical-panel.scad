@@ -890,16 +890,14 @@ module run_dist_left_to_conduits() {
     mcbs_cy    = mcbs_y + (mcb_per_side - 1) * mcb_unit[1] / 2
                         + mcb_unit[1] / 2;
     p_mcbs     = [mcb_left_x, mcbs_cy, mcb_z];
-    conduits_cx = conduit_x0 + (conduit_count - 1) * conduit_pitch / 2;
-    p_conduits = [conduits_cx, conduit_row_y, 0];
+    p_conduits = [conduit_x0, conduit_row_y, mcb_z];
     cable_run([
         [p_mcbs,     [-1, 0, 0]],
-        [p_conduits, [ 0, 0,-1]],
+        [[dist_x-70, conduit_row_y, mcb_z], [-1, 0, 0]],
+        [p_conduits, [ -1, 0, 0]],
     ], cores=mcb_per_side, d=3, sheath_col="brown",
        spread1=[0, mcb_unit[1], 0],
-       spread2=[conduit_pitch, 0, 0],
-       splay_length1=120,
-       splay_length2=160);
+       splay_length1=120);
 }
 
 // Distribution RIGHT bank MCB outputs -> exit top of enclosure -> left
@@ -949,6 +947,34 @@ module dim_h(x1, x2, y_anchor, label, off=-100, text_size=undef) {
                    yd + (off >= 0 ? ts*0.7 : -ts*0.7), dim_z])
             linear_extrude(dim_text_thk)
                 text(label, size=ts, halign="center", valign="center");
+}
+
+// Depth dim drawn along the Z axis. Anchored at (x_anchor, y_anchor) on
+// the front face, the dim line floats `off` further in -Y (below the
+// anchor) and runs from z1 to z2. Text lies flat in the XZ plane so it
+// reads along the depth direction.
+module dim_d(z1, z2, x_anchor, y_anchor, label, off=-100, text_size=undef) {
+    ts = text_size == undef ? dim_text_h : text_size;
+    yd = y_anchor + off;
+    color("orange", 0.7) {
+        hull() {
+            translate([x_anchor, yd, z1]) sphere(d=3, $fn=12);
+            translate([x_anchor, yd, z2]) sphere(d=3, $fn=12);
+        }
+        hull() {
+            translate([x_anchor, y_anchor, z1]) sphere(d=4, $fn=12);
+            translate([x_anchor, yd,       z1]) sphere(d=4, $fn=12);
+        }
+        hull() {
+            translate([x_anchor, y_anchor, z2]) sphere(d=4, $fn=12);
+            translate([x_anchor, yd,       z2]) sphere(d=4, $fn=12);
+        }
+    }
+    color("red")
+        translate([x_anchor, yd + (off >= 0 ? ts*0.7 : -ts*0.7), (z1+z2)/2])
+            rotate([90, 0, 90])
+                linear_extrude(dim_text_thk)
+                    text(label, size=ts, halign="center", valign="center");
 }
 
 module dim_v(y1, y2, x_anchor, label, off=-100, text_size=undef) {
@@ -1005,6 +1031,10 @@ module dimensions() {
           off=210, text_size=38);
     dim_v(upper_y, upper_y + upper_h, bands_x, str("Upper ", upper_h),
           off=210, text_size=38);
+
+    // Enclosure depth (bottom-right corner, extending in -Y below the floor).
+    dim_d(0, enc_d, enc_x + enc_w, enc_y, str("D ", enc_d),
+          off=-110, text_size=38);
 }
 
 // =========================================================================

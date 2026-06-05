@@ -35,8 +35,7 @@
 //          x=1780                x=2400      x=2700
 //
 // Cable slack (4x10sqmm stab feed + return) is held in the BACK-Z layer of
-// the Supply zone, behind the MCCB and 4-bolt bus. A cable guide curls the
-// cables from front-Z terminations into the back-Z slack volume.
+// the Supply zone, behind the MCCB and 4-bolt bus.
 //
 // Off-the-shelf: Stabilizer, Solar Inverter, Solar IN/AC DB internals
 //                (DIN-rail components only, no enclosure box),
@@ -92,8 +91,7 @@ supply_zone_w = enc_x + enc_w - supply_x;   // 300
 
 // ====== Horizontal bands above the cutout/supply zone ======
 // Cable nest is NOT a dedicated band - slack is held in the back-Z layer of
-// the Supply zone (behind the MCCB + bus), via a cable guide that curls the
-// service slack into that depth. Frees ~200mm of column height.
+// the Supply zone (behind the MCCB + bus). Frees ~200mm of column height.
 upper_y    = cutout_h;              // upper section starts directly at 970
 
 // Back-Z slack zone (behind the front-layer Supply equipment)
@@ -260,47 +258,6 @@ module smb_back_sheet() {
                   smb_back_sheet_t]);
 }
 
-// Global positions of the bus copper-bar holes (front face)
-function smb_hole_pos(i, row_y) = [
-    smb_pos[0] + i * bus2_pole_pitch + bus2_bar_w/2,
-    smb_pos[1] + row_y,
-    smb_pos[2] + bus2_ins_t + bus2_bar_t
-];
-
-
-// ====== Compact Supply zone contents (v1) ======
-// 4 vertical flat copper bars (RBYN), 70mm centers, 3 bolts each:
-//   bottom bolt = Supply (mains conduit)
-//   middle bolt = Solar (AC DB drop link)
-//   top    bolt = MCCB input
-// 4-pole MCCB sits above the bus. Input terminals at bottom (aligned with
-// bus top bolts at 70mm centers), output terminals at top of MCCB body
-// 200mm above the input.
-bus_count     = 4;
-bus_spacing   = 70;                  // center-to-center
-bus_bar_w     = 25;                  // flat bar width
-bus_bar_h     = 250;                 // bar height (3 bolts vertically)
-bus_bar_t     = 8;                   // bar thickness in Z
-bus_bar_y     = 460;
-bus_total_w   = (bus_count - 1) * bus_spacing + bus_bar_w;
-bus_first_cx  = supply_zone_x + (supply_zone_w - bus_total_w) / 2 + bus_bar_w / 2;
-bus_bar_z     = z_front - 100;
-bus_bolt_d    = 12;
-bus_bolt_len  = 30;
-bus_colors    = ["red", "blue", "yellow", "black"];   // RBYN
-bolt_low_y    = bus_bar_y + 30;
-bolt_mid_y    = bus_bar_y + bus_bar_h / 2;
-bolt_top_y    = bus_bar_y + bus_bar_h - 30;
-function bus_cx(i) = bus_first_cx + i * bus_spacing;
-
-// 4-pole MCCB - 4 input terminals (bottom), 4 output terminals (top), 200mm apart.
-// Terminal x positions aligned to bus bar centers.
-prov_mccb     = [bus_total_w + 30, 200, 150];         // wider than v1 mccb
-prov_mccb_x   = bus_first_cx - bus_bar_w / 2 - 15;    // centered on the 4 bars
-prov_mccb_y   = bus_bar_y + bus_bar_h + 30;           // gap above bus top
-mccb_in_y     = prov_mccb_y;
-mccb_out_y    = prov_mccb_y + 200;
-
 // ====== Stabilizer (off-the-shelf, sits in cutout) ======
 // Ports face RIGHT (towards the supply zone & MCCB). Output @ low Z, Input @ high Z.
 stab_x       = enc_x;
@@ -365,13 +322,10 @@ module polyline_cable(points, dia = 10, col = "red") {
 // defaults to 10*r. Perpendicular dir1/dir2 handles any 3D offset. Parallel
 // (same or opposite) cases only handle offsets in the plane of dir1 and one
 // perpendicular axis; out-of-plane offset is warned and ignored.
-function _vdot(a, b)   = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 function _vadd(a, b)   = [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
 function _vsub(a, b)   = [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
 function _vmul(s, v)   = [s*v[0], s*v[1], s*v[2]];
 function _vcross(a, b) = [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
-function _vabs(v)      = [abs(v[0]), abs(v[1]), abs(v[2])];
-function _axis_idx(d)  = (d[0] != 0) ? 0 : ((d[1] != 0) ? 1 : 2);
 
 module _straight(p, dir, L, r) {
     if (L > 0.001) {
@@ -679,59 +633,6 @@ module enclosure_doors() {
             cube([enc_w - 20, mon_h - 10, door_t]);
 }
 
-// ====== Compact Supply zone contents ======
-module compact_supply() {
-    // 4 vertical flat copper bars (RBYN). Each bar has 3 bolts:
-    // bottom = supply, middle = solar, top = MCCB.
-    for (i = [0 : bus_count - 1]) {
-        bar_x = bus_cx(i) - bus_bar_w / 2;
-        color(bus_colors[i])
-            translate([bar_x, bus_bar_y, bus_bar_z])
-                cube([bus_bar_w, bus_bar_h, bus_bar_t]);
-        // 3 bolts sticking forward (Z+) for O-ring lugs
-        for (by = [bolt_low_y, bolt_mid_y, bolt_top_y])
-            color("goldenrod")
-                translate([bus_cx(i), by, bus_bar_z + bus_bar_t])
-                    rotate([-90, 0, 0])
-                        cylinder(h = bus_bolt_d, d = bus_bolt_d,
-                                 center = true, $fn = 16);
-        // Bolt heads (slightly bigger discs at the front)
-        for (by = [bolt_low_y, bolt_mid_y, bolt_top_y])
-            color("dimgray")
-                translate([bus_cx(i), by, bus_bar_z + bus_bar_t + bus_bolt_len])
-                    rotate([0, 0, 0])
-                        cylinder(h = 4, d = bus_bolt_d + 4, $fn = 16);
-        // Tiny phase label
-        color("white")
-            translate([bus_cx(i) - 4, bus_bar_y + bus_bar_h + 3,
-                       bus_bar_z + bus_bar_t + 0.1])
-                linear_extrude(0.5)
-                    text(["R","B","Y","N"][i], size = 14, valign = "bottom");
-    }
-
-    // 4-pole provisional MCCB
-    color("darkorange", 0.5)
-        translate([prov_mccb_x, prov_mccb_y, z_front - prov_mccb[2]])
-            cube(prov_mccb);
-    color("white")
-        translate([prov_mccb_x + 4, prov_mccb_y + prov_mccb[1] - 8,
-                   z_front + 0.1])
-            linear_extrude(0.5)
-                text("MCCB 4P (provision)", size = 18, valign = "top");
-    // MCCB input terminals (bottom) - 4 studs aligned with bus bar centers
-    for (i = [0 : 3]) {
-        color("goldenrod")
-            translate([bus_cx(i), mccb_in_y - 5, z_front - prov_mccb[2] / 2])
-                rotate([-90, 0, 0])
-                    cylinder(h = 10, d = 10, center = true, $fn = 16);
-        // Output terminals at top of MCCB
-        color("goldenrod")
-            translate([bus_cx(i), mccb_out_y + 5, z_front - prov_mccb[2] / 2])
-                rotate([-90, 0, 0])
-                    cylinder(h = 10, d = 10, center = true, $fn = 16);
-    }
-}
-
 // ====== Solar chain ======
 module solar_chain() {
     translate([acdb_x, acdb_y, z_front - dbox_int[2]])
@@ -783,30 +684,10 @@ module monitoring_module() {
             linear_extrude(0.5) text("MONITORING", size = 22);
 }
 
-// ====== Cable guide (curls cables from front-Z to back-Z) ======
-// Shown as a quarter-pipe / curve at the lower-left of the supply zone,
-// guiding the stab cables from their stab-side termination back into the
-// back-Z slack zone behind the MCCB+bus.
-module cable_guide() {
-    gx = supply_zone_x + 5;
-    gy = stab_ports_y - 30;
-    color("dimgray", 0.6)
-        translate([gx, gy, slack_z_back + 20])
-            rotate([0, 0, 0])
-                difference() {
-                    cube([60, 90, 80]);
-                    translate([10, -1, -1]) cube([50, 92, 70]);
-                }
-    color("white")
-        translate([gx + 4, gy + 80, slack_z_back + 85])
-            linear_extrude(0.5)
-                text("guide", size = 14, valign = "top");
-}
-
 // ====== Back-Z cable slack zone marker ======
 // Translucent box marking the reserved volume behind the front-layer Supply
 // equipment, where the stab feed/return U-turns and service slack live.
-// (The actual cable runs are drawn by run_mccb_to_stab_feed and run_stab_to_dist.)
+// (The actual cable runs are drawn by run_smb_to_stab and run_stab_to_dist.)
 module cable_nest() {
     color("seagreen", 0.08)
         translate([supply_zone_x + enc_t + 5, enc_t + 5, slack_z_back])
@@ -908,72 +789,6 @@ module run_smb_to_stab() {
         [stab_in_p,  [1,  0, 0]],   // into stabilizer from +X
     ], cores=4, d=4,
        spread1=[mccb2_pitch, 0, 0]);
-}
-
-// Mains conduit -> Bus BOTTOM bolts (4 conductors, RBYN, individually colored)
-module run_mains_to_bus() {
-    for (i = [0 : 3]) {
-        p_top  = [supply_x + 30, bolt_low_y - 80, supply_dia / 2 + 15];
-        p_bolt = [bus_cx(i), bolt_low_y, bus_bar_z + bus_bar_t + bus_bolt_len];
-        polyline_cable([p_top,
-               [p_top[0], bolt_low_y - 60, p_bolt[2]],
-               [p_bolt[0], bolt_low_y - 60, p_bolt[2]],
-               p_bolt], dia = 12, col = bus_colors[i]);
-    }
-}
-
-// Bus TOP bolts -> MCCB input terminals (short vertical jumpers, RBYN)
-module run_bus_top_to_mccb() {
-    for (i = [0 : 3]) {
-        p_bolt = [bus_cx(i), bolt_top_y, bus_bar_z + bus_bar_t + bus_bolt_len];
-        p_mccb_in = [bus_cx(i), mccb_in_y - 5, z_front - prov_mccb[2] / 2];
-        polyline_cable([p_bolt,
-               [p_bolt[0], bolt_top_y + 20, p_bolt[2]],
-               [p_bolt[0], mccb_in_y - 20, p_mccb_in[2]],
-               p_mccb_in], dia = 12, col = bus_colors[i]);
-    }
-}
-
-// AC DB drop link cables: from AC DB bottom (4 outputs) DOWN to bus MIDDLE
-// bolts. Length ~380mm - drawn as cables (not solid copper) at this distance.
-module acdb_drop_link() {
-    z_acdb = z_front - dbox_int[2] / 2;
-    for (i = [0 : 3]) {
-        x_top  = acdb_x + 30 + i * ((dbox_int[0] - 60) / 3);
-        y_top  = acdb_y;
-        p_bolt = [bus_cx(i), bolt_mid_y, bus_bar_z + bus_bar_t + bus_bolt_len];
-        polyline_cable([
-            [x_top, y_top - 5, z_acdb],
-            [x_top, y_top - 25, p_bolt[2]],
-            [p_bolt[0], y_top - 25, p_bolt[2]],
-            [p_bolt[0], bolt_mid_y + 30, p_bolt[2]],
-            p_bolt
-        ], dia = 12, col = bus_colors[i]);
-    }
-}
-
-// MCCB OUTPUT -> Stab INPUT (4 conductors, RBYN).
-// Path: MCCB output (top of MCCB) -> LEFT along front -> tuck BACK into the
-// back-Z slack volume -> anchor at LEFT edge -> U-turn drape DOWN through
-// back-Z -> forward to stab input port. The down-leg of the U pays out
-// when the stab is wheeled forward for maintenance.
-module run_mccb_to_stab_feed() {
-    feed_z_back = slack_z_back + 40;
-    anchor_x    = supply_zone_x + 18;
-    for (i = [0 : 3]) {
-        p_out  = [bus_cx(i), mccb_out_y + 5, z_front - prov_mccb[2] / 2];
-        p_stab = [supply_zone_x - 3, stab_ports_y - 30 + i * 12, stab_in_z];
-        polyline_cable([
-            p_out,
-            [p_out[0],   mccb_out_y + 25, p_out[2]],          // up and out of MCCB
-            [anchor_x,   mccb_out_y + 25, p_out[2]],           // LEFT across front
-            [anchor_x,   mccb_out_y + 25, feed_z_back],        // tuck into back-Z
-            [anchor_x,   stab_ports_y + 30, feed_z_back],      // anchor at left, drape DOWN
-            [anchor_x,   stab_ports_y, feed_z_back],
-            [supply_zone_x + 5, stab_ports_y, stab_in_z - 20], // out forward
-            p_stab
-        ], dia = 14, col = bus_colors[i]);
-    }
 }
 
 // Stabilizer output -> Distribution OUT MCCB input.
@@ -1198,17 +1013,12 @@ module dimensions() {
     solar_chain();
     distribution_module();
     monitoring_module();
-    cable_guide();
     cable_nest();
 
     stabilizer_unit();
     supply_conduit();
     conduit_row();
 
-    acdb_drop_link();
-    run_mains_to_bus();
-    run_bus_top_to_mccb();
-    run_mccb_to_stab_feed();
     run_stab_to_dist();
     run_solar_in();
     run_sdb_to_inv();

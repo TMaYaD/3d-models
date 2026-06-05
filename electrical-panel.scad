@@ -74,33 +74,46 @@ mcb_unit     = [51, 87, 80];
 mcb_per_side = 10;
 
 // ====== Enclosure shell ======
-enc_x = 1780;              // stab right edge lines up with supply_x
+enc_w = 950;
+enc_x = wall_w - enc_w;    // right edge flush with the wall
 enc_y = 0;                 // enclosure sits on floor (cutout opens at bottom)
-enc_w = 920;
-enc_h = 2350;              // shrunk - cable nest moved BEHIND the supply DB
+enc_h = 2400;
 enc_d = 350;
 enc_t = 8;
 
 // ====== Lower section X split ======
+// Lower section is split at supply_x (mains conduit anchor):
+//   stab cutout on the left, supply zone (SMB) on the right.
+//   Supply zone is exactly stabilizer-tall (= cutout_h).
 cutout_x  = enc_x;
-cutout_w  = supply_x - enc_x;       // 620
-cutout_h  = 970;                    // matches stab height
+cutout_w  = supply_x - enc_x;               // = 650
+cutout_h  = stabilizer[1];                  // = 970, supply enc matches stab height
 
 supply_zone_x = supply_x;
-supply_zone_w = enc_x + enc_w - supply_x;   // 300
-
-// ====== Horizontal bands above the cutout/supply zone ======
-// Cable nest is NOT a dedicated band - slack is held in the back-Z layer of
-// the Supply zone (behind the MCCB + bus). Frees ~200mm of column height.
-upper_y    = cutout_h;              // upper section starts directly at 970
+supply_zone_w = enc_x + enc_w - supply_x;   // = 300
 
 // Back-Z slack zone (behind the front-layer Supply equipment)
 slack_z_back  = enc_t + 5;       // just in front of the backplate
 slack_z_front = 150;             // boundary: front layer starts here (MCCB back face)
 
-// ====== Internal vertical partition (in upper section only) ======
-partition_x = supply_x;              // aligned with stab cutout's right edge
+// ====== Horizontal bands above the cutout/supply zone ======
+// Monitoring is a horizontal band sandwiched between the lower (stab +
+// supply) section and the upper (Distribution + Solar) section, full-width.
+mon_h   = 160;
+mon_y   = cutout_h;                 // monitoring sits directly above stab/supply
+upper_y = mon_y + mon_h;            // Distribution + Solar start above monitoring
+
+m30_y       = mon_y + (mon_h - m30[1]) / 2;
+m30_pitch   = m30[0] + 30;
+m30_block_w = 2 * m30[0] + 30;
+m30_x0      = enc_x + (enc_w - m30_block_w) / 2;
+
+// ====== Internal vertical partition (upper section only) ======
+// Solar column is wider than the supply column below it; the upper partition
+// sits left of supply_x so Solar can fit the inverter / DB internals
+// comfortably. The lower stab|supply split stays at supply_x independently.
 partition_t = 10;
+partition_x = 2322;          // upper-section Distribution|Solar split
 
 // 4-pole MCCB: 127 x 194 x 80, terminal holes 8.5 dia at 35mm pitch,
 // 11mm from bottom end (input) and 11mm from top end (output).
@@ -145,14 +158,6 @@ inv_x  = sol_x + (sol_w - inverter[0]) / 2;
 inv_y  = acdb_y + dbox_int[1] + 40;
 sdb_x  = sol_x + (sol_w - dbox_int[0]) / 2;
 sdb_y  = inv_y + inverter[1] + 40;
-
-// ====== Monitoring (top, full width) ======
-mon_h       = 160;
-mon_y       = enc_h - mon_h - 30;
-m30_y       = mon_y + (mon_h - m30[1]) / 2;
-m30_pitch   = m30[0] + 30;
-m30_block_w = 2 * m30[0] + 30;
-m30_x0      = enc_x + (enc_w - m30_block_w) / 2;
 
 // =========================================================================
 // SUPPLY BUS v2 + MCCB v2 (35mm pole pitch, full part dimensions)
@@ -601,15 +606,15 @@ module enclosure_shell() {
     // partition between Distribution and Solar (upper section only)
     color("lightgray", 0.4)
         translate([partition_x, upper_y, 0])
-            cube([partition_t, mon_y - upper_y, enc_d - 30]);
+            cube([partition_t, enc_h - upper_y - enc_t, enc_d - 30]);
     // horizontal shelves
     color("lightgray", 0.4) {
-        // top of cutout/supply zone = bottom of upper section
-        // (front layer only; back-Z stays open so slack can pass through)
+        // bottom of monitoring band (= top of cutout/supply zone).
+        // Front layer only; back-Z stays open so slack can pass through.
         translate([enc_x + enc_t, cutout_h, slack_z_front])
             cube([enc_w - 2 * enc_t, 5, enc_d - 30 - slack_z_front]);
-        // top of upper section = bottom of Monitoring
-        translate([enc_x + enc_t, mon_y, 0])
+        // top of monitoring band = bottom of Distribution + Solar
+        translate([enc_x + enc_t, upper_y, 0])
             cube([enc_w - 2 * enc_t, 5, enc_d - 30]);
     }
 }
@@ -626,16 +631,17 @@ module enclosure_doors() {
     color("steelblue", 0.22)
         translate([supply_zone_x + 5, 10, door_z])
             cube([supply_zone_w - 15, cutout_h - 20, door_t]);
+    upper_door_h = enc_h - upper_y - enc_t - 10;
     // Distribution Module door (upper left)
     color("orange", 0.22)
         translate([enc_x + 10, upper_y + 5, door_z])
-            cube([partition_x - enc_x - 15, mon_y - upper_y - 10, door_t]);
+            cube([partition_x - enc_x - 15, upper_door_h, door_t]);
     // Solar chain door (upper right)
     color("plum", 0.22)
         translate([partition_x + partition_t + 5, upper_y + 5, door_z])
             cube([enc_x + enc_w - partition_x - partition_t - 15,
-                  mon_y - upper_y - 10, door_t]);
-    // Monitoring door (top, full width)
+                  upper_door_h, door_t]);
+    // Monitoring door (mid band, full width)
     color("seagreen", 0.22)
         translate([enc_x + 10, mon_y + 5, door_z])
             cube([enc_w - 20, mon_h - 10, door_t]);
@@ -818,17 +824,6 @@ module run_stab_to_dist() {
         // Loop perimeter, behind SMB at nest_z:
         [[nest_right_x, stab_out_p[1], stab_out_p[2]],     [ 0, 1, 0]],    // bot-right, turning to +Y
         [[smb_zone_x,  backplate_y0, stab_out_p[2]],       [ 0, 1, 0]],    // up the right side
-//        [[nest_left_x + 60, nest_top_y,    nest_z],        [-1, 0, 0]],   // top (going -X)
-//        [[nest_left_x,  nest_bot_y + 60,   nest_z],        [ 0,-1, 0]],   // down the left side
-//        // U-turn through Z into the backplane layer:
-//        [[nest_left_x,  nest_bot_y,        back_z],        [ 0, 1, 0]],   // now going +Y at back_z
-//        // Up the left edge behind the backplane to the upper section:
-//        [[nest_left_x,  dist_y - 60,       back_z],        [ 0, 1, 0]],
-//        // Across to the OUT MCCB column:
-//        [[mccb_cx + 60, dist_y + 60,       back_z],        [-1, 0, 0]],   // going -X
-//        [[mccb_cx,      mccb_anchor_y,     back_z],        [ 0,-1, 0]],   // going -Y
-        // U-turn through Z to the MCCB front face:
-        [[mccb_cx,      mccb_anchor_y,     z_front],       [ 0, 1, 0]],    // now going +Y at z_front
         // Up into the splay, fanning across the 4 input bolts:
         [dist_mccb_in_p,                                   [ 0, 1, 0]],
     ], cores=4, d=4,
@@ -976,19 +971,20 @@ module dimensions() {
           off=-110, text_size=38);
 
     // Upper-section X split (Distribution vs Solar widths)
-    dim_h(enc_x, partition_x, mon_y, str("Dist ", dist_w),
+    dim_h(enc_x, partition_x, upper_y, str("Dist ", dist_w),
           off=-40, text_size=38);
-    dim_h(partition_x + partition_t, enc_x + enc_w, mon_y,
+    dim_h(partition_x + partition_t, enc_x + enc_w, upper_y,
           str("Sol ", enc_x + enc_w - partition_x - partition_t),
           off=-40, text_size=38);
 
     // Band heights (right side, stepped offsets so they don't overlap)
     bands_x = enc_x + enc_w;
+    upper_h = enc_h - upper_y - enc_t;
     dim_v(enc_y, cutout_h, bands_x, str("Cutout ", cutout_h),
           off=210, text_size=38);
-    dim_v(upper_y, mon_y, bands_x, str("Upper ", mon_y - upper_y),
-          off=210, text_size=38);
     dim_v(mon_y, mon_y + mon_h, bands_x, str("Mon ", mon_h),
+          off=210, text_size=38);
+    dim_v(upper_y, upper_y + upper_h, bands_x, str("Upper ", upper_h),
           off=210, text_size=38);
 }
 
@@ -998,8 +994,6 @@ module dimensions() {
     // Supply MCCB Bus (placement = smb_pos)
     translate(smb_pos) supply_mccb_bus();
     smb_back_sheet();
-    run_conduit_to_smb_lower();
-    !run_smb_to_stab();
     wall_panel();
     grid();
     window_cutout();
@@ -1012,7 +1006,9 @@ module dimensions() {
     stabilizer_unit();
     supply_conduit();
     conduit_row();
-
+    
+    run_conduit_to_smb_lower();
+    run_smb_to_stab();
     run_stab_to_dist();
     run_solar_in();
     run_sdb_to_inv();

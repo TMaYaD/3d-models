@@ -684,22 +684,6 @@ module monitoring_module() {
             linear_extrude(0.5) text("MONITORING", size = 22);
 }
 
-// ====== Back-Z cable slack zone marker ======
-// Translucent box marking the reserved volume behind the front-layer Supply
-// equipment, where the stab feed/return U-turns and service slack live.
-// (The actual cable runs are drawn by run_smb_to_stab and run_stab_to_dist.)
-module cable_nest() {
-    color("seagreen", 0.08)
-        translate([supply_zone_x + enc_t + 5, enc_t + 5, slack_z_back])
-            cube([supply_zone_w - 2*enc_t - 10,
-                  cutout_h - 2*enc_t - 10,
-                  slack_z_front - slack_z_back - 5]);
-    color("white")
-        translate([supply_zone_x + 8, cutout_h - 12, enc_d - 5])
-            linear_extrude(0.5)
-                text("nest (back-Z)", size = 14, valign = "top");
-}
-
 // ====== Stabilizer (in cutout) ======
 module stabilizer_unit() {
     translate([stab_x, stab_y, 0])
@@ -1013,7 +997,6 @@ module dimensions() {
     solar_chain();
     distribution_module();
     monitoring_module();
-    cable_nest();
 
     stabilizer_unit();
     supply_conduit();

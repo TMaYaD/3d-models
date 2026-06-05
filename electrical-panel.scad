@@ -882,35 +882,41 @@ module run_inv_to_acdb() {
     ], cores=1, d=6, sheath_col="purple");
 }
 
-// Distribution LEFT bank MCB outputs -> conduits above window
+// Distribution LEFT bank MCB outputs -> conduits above window.
+// Bundled as a single trunk that fans into the MCB row at one end and into
+// the conduit row at the other, so it doesn't crisscross the cabinet.
 module run_dist_left_to_conduits() {
-    for (i = [0 : mcb_per_side - 1]) {
-        p_mcb = [mcb_left_x, mcbs_y + i * mcb_unit[1] + mcb_unit[1] / 2,
-                 enc_t + 20 + mcb_unit[2] / 2];
-        ci = i % conduit_count;
-        cx = conduit_x0 + ci * conduit_pitch;
-        p_end = [cx, conduit_row_y, 0];
-        cable_run([
-            [p_mcb, [-1, 0, 0]],
-            [p_end, [ 0,-1, 0]],
-        ], cores=1, d=3, sheath_col="brown");
-    }
+    mcb_z      = enc_t + 20 + mcb_unit[2] / 2;
+    mcbs_cy    = mcbs_y + (mcb_per_side - 1) * mcb_unit[1] / 2
+                        + mcb_unit[1] / 2;
+    p_mcbs     = [mcb_left_x, mcbs_cy, mcb_z];
+    conduits_cx = conduit_x0 + (conduit_count - 1) * conduit_pitch / 2;
+    p_conduits = [conduits_cx, conduit_row_y, 0];
+    cable_run([
+        [p_mcbs,     [-1, 0, 0]],
+        [p_conduits, [ 0, 0,-1]],
+    ], cores=mcb_per_side, d=3, sheath_col="brown",
+       spread1=[0, mcb_unit[1], 0],
+       spread2=[conduit_pitch, 0, 0],
+       splay_length1=120,
+       splay_length2=160);
 }
 
 // Distribution RIGHT bank MCB outputs -> exit top of enclosure -> left
-// wall duct.
+// wall duct. Single bundle, splayed only at the MCB end.
 module run_dist_right_to_duct() {
+    mcb_z       = enc_t + 20 + mcb_unit[2] / 2;
+    mcbs_cy     = mcbs_y + (mcb_per_side - 1) * mcb_unit[1] / 2
+                         + mcb_unit[1] / 2;
     duct_lane_y = wall_h - 80;
-    for (i = [0 : mcb_per_side - 1]) {
-        p_mcb = [mcb_right_x + mcb_unit[0],
-                 mcbs_y + i * mcb_unit[1] + mcb_unit[1] / 2,
-                 enc_t + 20 + mcb_unit[2] / 2];
-        p_end = [0, duct_lane_y, 210];
-        cable_run([
-            [p_mcb, [ 1, 0, 0]],
-            [p_end, [-1, 0, 0]],
-        ], cores=1, d=3, sheath_col="saddlebrown");
-    }
+    p_mcbs      = [mcb_right_x + mcb_unit[0], mcbs_cy, mcb_z];
+    p_duct      = [0, duct_lane_y, 210];
+    cable_run([
+        [p_mcbs, [ 1, 0, 0]],
+        [p_duct, [-1, 0, 0]],
+    ], cores=mcb_per_side, d=3, sheath_col="saddlebrown",
+       spread1=[0, mcb_unit[1], 0],
+       splay_length1=120);
 }
 
 // =========================================================================

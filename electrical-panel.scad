@@ -150,7 +150,7 @@ mcb_right_x     = dist_bb_x + dist_bb_w + 30;
 // Order outside-in: Ground - Neutral - MCB - BUS - MCB - Neutral - Ground.
 dist_n_w        = 20;
 dist_g_w        = 20;
-dist_bar_gap    = 25;       // gap to adjacent MCB / neutral
+dist_bar_gap    = 45;       // gap to adjacent MCB / neutral
 dist_bar_t      = 15;       // Z thickness
 dist_bar_z      = enc_t + 25;
 
@@ -685,17 +685,17 @@ module distribution_module() {
                 cube([dist_bb_w / 4 - 2, dist_bb_h, 14]);
     // Left bank of 10 MCBs
     for (i = [0 : mcb_per_side - 1])
-        color("black")
+        color("white")
             translate([mcb_left_x, mcbs_y + i * mcb_unit[1], enc_t + 20])
                 cube([mcb_unit[0] - 2, mcb_unit[1] - 2, mcb_unit[2]]);
     // Right bank of 10 MCBs
     for (i = [0 : mcb_per_side - 1])
-        color("black")
+        color("white")
             translate([mcb_right_x, mcbs_y + i * mcb_unit[1], enc_t + 20])
                 cube([mcb_unit[0] - 2, mcb_unit[1] - 2, mcb_unit[2]]);
     // Neutral bars (one each side, outside the MCB banks)
     for (x = [dist_n_l_x, dist_n_r_x])
-        color("blue")
+        color("black")
             translate([x, mcbs_y, dist_bar_z])
                 cube([dist_n_w, mcb_block_h, dist_bar_t]);
     // Ground bars (outermost on each side)

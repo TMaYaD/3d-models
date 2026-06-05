@@ -326,14 +326,6 @@ module labeled_box(dim, name, col) {
         linear_extrude(0.5) text(name, size = 26, valign = "top");
 }
 
-module polyline_cable(points, dia = 10, col = "red") {
-    for (i = [0 : len(points) - 2])
-        color(col) hull() {
-            translate(points[i])     sphere(d = dia, $fn = 10);
-            translate(points[i + 1]) sphere(d = dia, $fn = 10);
-        }
-}
-
 // ====== Parametric wire router ======
 // Routes a wire from p1 (heading out in dir1) to p2 (arriving heading in dir2).
 // dir1, dir2 must be axis-aligned unit vectors (e.g. [0,1,0], [0,0,-1]).
@@ -857,12 +849,13 @@ module run_stab_to_dist() {
 // Solar feed: enters from left-wall duct, runs along top of wall, drops
 // into the Solar IN DB internals from above.
 module run_solar_in() {
-    p_duct   = [0, wall_h - 50, 60];
-    p_corner = [enc_x + enc_w - 60, wall_h - 50, 60];
-    p_top    = [sdb_x + dbox_int[0] / 2, enc_h - 25, 60];
-    p_sdb    = [sdb_x + dbox_int[0] / 2, sdb_y + dbox_int[1] + 2,
-                z_front - dbox_int[2] / 2];
-    polyline_cable([p_duct, p_corner, p_top, p_sdb], dia = 14, col = "red");
+    p_duct = [0, wall_h - 50, 60];
+    p_sdb  = [sdb_x + dbox_int[0] / 2, sdb_y + dbox_int[1] + 2,
+              z_front - dbox_int[2] / 2];
+    cable_run([
+        [p_duct, [ 1,  0, 0]],
+        [p_sdb,  [ 0, -1, 0]],
+    ], cores=1, d=7, sheath_col="red");
 }
 
 // Solar IN DB -> Inverter (DC) via right-column trunk
@@ -870,13 +863,10 @@ module run_sdb_to_inv() {
     z = z_front - dbox_int[2] / 2;
     p_out = [sdb_x + dbox_int[0] * 0.5, sdb_y - 2, z];
     p_in  = [inv_x + 50, inv_y - 2, z_front - inverter[2] / 2];
-    trunk_x = sol_x + 25;
-    polyline_cable([p_out,
-           [p_out[0], sdb_y - 25, z],
-           [trunk_x,  sdb_y - 25, z],
-           [trunk_x,  inv_y - 25, z],
-           [p_in[0],  inv_y - 25, z],
-           p_in], dia = 12, col = "crimson");
+    cable_run([
+        [p_out, [0, -1, 0]],
+        [p_in,  [0, -1, 0]],
+    ], cores=1, d=6, sheath_col="crimson");
 }
 
 // Inverter AC out -> AC DB internals
@@ -884,10 +874,10 @@ module run_inv_to_acdb() {
     p_inv  = [inv_x + inverter[0] - 50, inv_y - 2, z_front - inverter[2] / 2];
     p_acdb = [acdb_x + dbox_int[0] * 0.5, acdb_y + dbox_int[1] + 2,
               z_front - dbox_int[2] / 2];
-    polyline_cable([p_inv,
-           [p_inv[0],  acdb_y + dbox_int[1] + 25, z_front - inverter[2] / 2],
-           [p_acdb[0], acdb_y + dbox_int[1] + 25, z_front - dbox_int[2] / 2],
-           p_acdb], dia = 12, col = "purple");
+    cable_run([
+        [p_inv,  [0, -1, 0]],
+        [p_acdb, [0, -1, 0]],
+    ], cores=1, d=6, sheath_col="purple");
 }
 
 // Distribution LEFT bank MCB outputs -> conduits above window
@@ -897,30 +887,27 @@ module run_dist_left_to_conduits() {
                  enc_t + 20 + mcb_unit[2] / 2];
         ci = i % conduit_count;
         cx = conduit_x0 + ci * conduit_pitch;
-        polyline_cable([p_mcb,
-               [enc_x - 5, p_mcb[1], 110],
-               [enc_x - 5, conduit_row_y, 110],
-               [cx, conduit_row_y, 110],
-               [cx, conduit_row_y, 0]], dia = 6, col = "brown");
+        p_end = [cx, conduit_row_y, 0];
+        cable_run([
+            [p_mcb, [-1, 0, 0]],
+            [p_end, [ 0,-1, 0]],
+        ], cores=1, d=3, sheath_col="brown");
     }
 }
 
-// Distribution RIGHT bank MCB outputs -> through solar column left trunk
-// -> exit top of enclosure -> left wall duct
+// Distribution RIGHT bank MCB outputs -> exit top of enclosure -> left
+// wall duct.
 module run_dist_right_to_duct() {
-    riser_x     = partition_x + partition_t + 25;
-    top_lane_y  = enc_h - 25;
     duct_lane_y = wall_h - 80;
     for (i = [0 : mcb_per_side - 1]) {
         p_mcb = [mcb_right_x + mcb_unit[0],
                  mcbs_y + i * mcb_unit[1] + mcb_unit[1] / 2,
                  enc_t + 20 + mcb_unit[2] / 2];
-        polyline_cable([p_mcb,
-               [riser_x, p_mcb[1], 210],
-               [riser_x, top_lane_y, 210],
-               [enc_x + 30, top_lane_y, 210],
-               [enc_x + 30, duct_lane_y, 210],
-               [0,          duct_lane_y, 210]], dia = 6, col = "saddlebrown");
+        p_end = [0, duct_lane_y, 210];
+        cable_run([
+            [p_mcb, [ 1, 0, 0]],
+            [p_end, [-1, 0, 0]],
+        ], cores=1, d=3, sheath_col="saddlebrown");
     }
 }
 

@@ -1,26 +1,49 @@
-// Electrical panel - custom distribution enclosure
+// Electrical panel - custom distribution enclosure (single-column variant)
 // Units: millimetres. Front view (looking AT the wall).
 // Origin: bottom-left corner of the wall, floor level.
 //   X: along wall horizontal (positive = right)
 //   Y: vertical (positive = up)
 //   Z: out of the wall (positive = towards the room)
 //
-// Off-the-shelf: Stabilizer (external), Solar Inverter, Solar Input DB,
-//                Solar AC DB (has internal solar MCB), Kincony M30, MCCB,
-//                MCBs, supply MCB.
-// Custom build:  Enclosure shell, internal busbars, partitions, doors.
+// Single 920mm-wide column right of the window. Stabilizer (off-the-shelf,
+// on wheels) sits in a notched cutout in the lower-left of the enclosure
+// footprint, with its right edge aligned to the mains supply conduit.
+// Compact supply zone (mains entry + provisional MCCB + 4-bolt bus on
+// insulator) lives in the narrow strip right of the mains conduit.
 //
-// Compartments (4 doors):
-//   1. Supply Module   - bottom strip, full width, rare access
-//   2. Monitoring      - left, just above Supply, houses 2x Kincony M30
-//   3. Distribution    - left, upper, VTPN with 20 ways (10 each side)
-//   4. Solar chain     - right, full height above Supply
+// Layout (front view):
 //
-// Depth layers (Z from wall outward):
-//   0..80   backplate + heavy busbars (supply bus, distribution centre bus)
-//   80..170 CT clamps + stabilizer RETURN run (low-Z, "deeper" layer)
-//   170..350 front layer: MCCB, supply MCB, MCBs, M30s, AC DB body,
-//            stabilizer FEED run (high-Z, near user)
+//   y=2350  +-----------------------------------+
+//           |  Monitoring (2x M30, full width)  |
+//           +---------------------+-------------+
+//           |                     |             |
+//           |  Distribution VTPN  | Solar chain |
+//           |  (Output MCCB,      | (AC DB intls|
+//           |   central busbar,   |  +Inverter  |
+//           |   2x10 MCBs)        |  +Solar IN  |
+//           |                     |   intls)    |
+//   y=970   +-----------------------+-----------+
+//           |                       | 4-bolt    |
+//           |   STAB CUTOUT         | bus (top) |
+//           |   (open at front      | MCCB prov |
+//           |    and bottom)        | Mains ↑   |
+//           |                       |           |
+//           |   stab rolls in       | slack     |
+//           |                       | nests in  |
+//           |                       | back-Z    |
+//   y=0     +-----------------------+-----------+
+//          x=1780                x=2400      x=2700
+//
+// Cable slack (4x10sqmm stab feed + return) is held in the BACK-Z layer of
+// the Supply zone, behind the MCCB and 4-bolt bus. A cable guide curls the
+// cables from front-Z terminations into the back-Z slack volume.
+//
+// Off-the-shelf: Stabilizer, Solar Inverter, Solar IN/AC DB internals
+//                (DIN-rail components only, no enclosure box),
+//                Kincony M30 monitoring boards, MCCBs, 3-phase MCBs.
+// Custom build:  Enclosure shell with stab cutout, partitions, doors,
+//                compact 4-bolt supply bus on insulator, Distribution VTPN
+//                central busbar, cable nest, internal wireways.
 
 // ====== Wall ======
 wall_w = 2700;
@@ -43,120 +66,245 @@ supply_x          = wall_w - supply_from_right;   // 2400
 // ====== Off-the-shelf component sizes [W, H, D] ======
 inverter   = [300, 610, 200];
 stabilizer = [620, 970, 370];
-dbox       = [300, 270, 140];   // both solar DBs
+dbox_int   = [280, 200, 100];   // Solar DB internals (DIN-rail only, no box)
 m30        = [160,  90,  65];
 mccb       = [150, 250, 150];
-// (Supply-side MCB lives at the upstream end of the duct, not in this enclosure)
 
 // ====== 3-phase MCBs ======
 mcb_unit     = [51, 87, 80];
 mcb_per_side = 10;
 
 // ====== Enclosure shell ======
-enc_x = 1700;
-enc_y = 50;
-enc_w = 870;    // grown to provision a left-side cable trunk in the solar column
-enc_h = 1850;   // grown to provision an output MCCB at the bottom of the dist busbar
+enc_x = 1780;              // stab right edge lines up with supply_x
+enc_y = 0;                 // enclosure sits on floor (cutout opens at bottom)
+enc_w = 920;
+enc_h = 2350;              // shrunk - cable nest moved BEHIND the supply DB
 enc_d = 350;
 enc_t = 8;
 
-// Internal vertical partition between left (Distribution + Monitoring) and
-// right (Solar chain) halves
-partition_x = enc_x + 400;
+// ====== Lower section X split ======
+cutout_x  = enc_x;
+cutout_w  = supply_x - enc_x;       // 620
+cutout_h  = 970;                    // matches stab height
+
+supply_zone_x = supply_x;
+supply_zone_w = enc_x + enc_w - supply_x;   // 300
+
+// ====== Horizontal bands above the cutout/supply zone ======
+// Cable nest is NOT a dedicated band - slack is held in the back-Z layer of
+// the Supply zone (behind the MCCB + bus), via a cable guide that curls the
+// service slack into that depth. Frees ~200mm of column height.
+upper_y    = cutout_h;              // upper section starts directly at 970
+
+// Back-Z slack zone (behind the front-layer Supply equipment)
+slack_z_back  = enc_t + 5;       // just in front of the backplate
+slack_z_front = 150;             // boundary: front layer starts here (MCCB back face)
+
+// ====== Internal vertical partition (in upper section only) ======
+partition_x = supply_x;              // aligned with stab cutout's right edge
 partition_t = 10;
 
-// ====== Horizontal bands (left column ordered bottom-up: Supply, Dist, Monitoring) ======
-sup_y  = enc_y + 30;
-sup_h  = 320;       // sized to contain a provisional input MCCB (future-proofing)
+// ====== Distribution module (upper-left) ======
+dist_x = enc_x;
+dist_w = partition_x - dist_x;       // 620
+dist_y = upper_y;
 
-// Cable Nest: sub-compartment within the Supply band, bottom-left, holds the
-// service slack for the 4x10sqmm stab feed + return cables so the stabilizer
-// (on wheels) can be rolled out for maintenance with connections intact.
-nest_partition_x = enc_x + 220;
-nest_partition_t = 10;
-nest_inner_x     = enc_x + enc_t + 10;
-nest_inner_w     = nest_partition_x - nest_inner_x - 10;
-nest_inner_y     = sup_y + 10;
-nest_inner_h     = sup_h - 20;
-dist_y = sup_y + sup_h + 30;
-mon_h  = 180;
-dist_h = (enc_y + enc_h) - dist_y - 30 - mon_h - 30;
-mon_y  = dist_y + dist_h + 30;
-sol_y  = sup_y + sup_h + 30;
-sol_h  = (enc_y + enc_h) - sol_y - 30;
-
-// ====== Inner X regions ======
-left_x  = enc_x + enc_t + 10;
-left_w  = (partition_x - left_x) - 10;
-right_x = partition_x + partition_t + 10;
-right_w = (enc_x + enc_w - enc_t) - right_x - 10;
-
-// ====== Solar chain (right column) - AC DB at bottom taps supply busbar ======
-// Right-aligned in the right column to leave a left-side cable trunk
-// (used by right-bank MCB outputs rising to the top exit).
-sol_right_margin = 20;
-sol_col_left_trunk_w = 70;   // dedicated wireway against the partition
-acdb_x = enc_x + enc_w - enc_t - sol_right_margin - dbox[0];
-acdb_y = sol_y;
-inv_x  = enc_x + enc_w - enc_t - sol_right_margin - inverter[0];
-inv_y  = acdb_y + dbox[1] + 40;
-sdb_x  = acdb_x;
-sdb_y  = inv_y + inverter[1] + 40;
-
-// ====== Supply Module ======
-sup_inner_x = nest_partition_x + nest_partition_t + 10;
-sup_inner_w = (enc_x + enc_w - enc_t) - sup_inner_x - 10;
-
-// Input MCCB is PROVISIONED but unused today (stabilizer has a built-in input
-// MCB). Future-proofing for a replacement stabilizer that omits the input MCB.
-// Shifted right by 40mm so a left-side cable trunk inside Supply Module stays
-// clear for stab feed/return.
-mccb_x = sup_inner_x + 40;
-mccb_y = sup_y + 30;
-
-busbar_x = mccb_x + mccb[0] + 30;
-busbar_y = sup_y + sup_h / 2 - 25;
-busbar_w = (sup_inner_x + sup_inner_w) - busbar_x - 10;
-busbar_h = 50;
-busbar_z = 15;
-busbar_t = 12;
-
-// CT clamps around each pole of the supply busbar, at one section
-ct_clamp_z      = 110;
-ct_clamp_dia    = 38;
-ct_section_x    = busbar_x + busbar_w * 0.35;
-
-// ====== Distribution Module (VTPN) ======
-// Output MCCB (4-pole) provisioned at the bottom of the central busbar - acts as
-// distribution-side incomer / maintenance isolator after the stabilizer.
-dist_mccb       = mccb;                       // same envelope as supply MCCB
+dist_mccb       = mccb;              // Output MCCB at bottom of central busbar
 dist_bb_w       = 60;
-dist_bb_x       = left_x + (left_w - dist_bb_w) / 2;
+dist_bb_x       = dist_x + (dist_w - dist_bb_w) / 2;
 dist_mccb_x     = dist_bb_x + dist_bb_w / 2 - dist_mccb[0] / 2;
 dist_mccb_y     = dist_y + 30;
-
 dist_bb_y       = dist_mccb_y + dist_mccb[1] + 20;
-dist_bb_h       = (dist_y + dist_h) - dist_bb_y - 30;
 dist_bb_z       = 15;
 
-mcb_left_x   = dist_bb_x - mcb_unit[0] - 20;
-mcb_right_x  = dist_bb_x + dist_bb_w + 20;
-mcb_block_h  = mcb_per_side * mcb_unit[1];
-mcbs_y       = dist_bb_y + (dist_bb_h - mcb_block_h) / 2;
+mcb_left_x      = dist_bb_x - mcb_unit[0] - 30;
+mcb_right_x     = dist_bb_x + dist_bb_w + 30;
+mcb_block_h     = mcb_per_side * mcb_unit[1];
+mcbs_y          = dist_bb_y + 40;
+dist_bb_h       = mcb_block_h + 80;          // busbar slightly taller than MCB block
+dist_h          = (dist_bb_y - dist_y) + dist_bb_h + 30;
 
-// ====== Monitoring compartment (2x Kincony M30) ======
+// ====== Solar chain (upper-right) ======
+sol_x  = partition_x + partition_t + 10;
+sol_w  = enc_x + enc_w - sol_x - enc_t;
+acdb_x = sol_x + (sol_w - dbox_int[0]) / 2;
+acdb_y = upper_y;
+inv_x  = sol_x + (sol_w - inverter[0]) / 2;
+inv_y  = acdb_y + dbox_int[1] + 40;
+sdb_x  = sol_x + (sol_w - dbox_int[0]) / 2;
+sdb_y  = inv_y + inverter[1] + 40;
+
+// ====== Monitoring (top, full width) ======
+mon_h       = 160;
+mon_y       = enc_h - mon_h - 30;
 m30_y       = mon_y + (mon_h - m30[1]) / 2;
 m30_pitch   = m30[0] + 30;
 m30_block_w = 2 * m30[0] + 30;
-m30_x0      = left_x + (left_w - m30_block_w) / 2;
+m30_x0      = enc_x + (enc_w - m30_block_w) / 2;
 
-// ====== External: Stabilizer (off-the-shelf) ======
-// Right edge tight against enclosure left edge. Ports face right.
-// Output @ low Z (near wall), Input @ high Z (near user).
-stab_x = enc_x - stabilizer[0];
-stab_y = 0;
-stab_in_z  = stabilizer[2] - 80;
-stab_out_z = 80;
+// =========================================================================
+// SUPPLY BUS v2 + MCCB v2 (35mm pole pitch, full part dimensions)
+// =========================================================================
+// 4 flat copper bars, 22 wide x 194 tall x 5 thick.
+// 13mm gap between bars -> pole pitch = 35mm.
+// 3 holes per bar (8.5mm dia): one at middle, two at 11mm from each end.
+// Two horizontal insulator bars (21mm tall x 21mm deep, full bus width),
+// placed BEHIND the copper bars, centered between the hole positions.
+bus2_bar_w        = 22;
+bus2_bar_h        = 194;
+bus2_bar_t        = 5;
+bus2_gap          = 13;
+bus2_pole_pitch   = bus2_bar_w + bus2_gap;            // 35
+bus2_total_w      = 4 * bus2_bar_w + 3 * bus2_gap;    // 127
+bus2_hole_d       = 8.5;
+bus2_hole_y_lo    = 11;
+bus2_hole_y_mid   = bus2_bar_h / 2;                   // 97
+bus2_hole_y_hi    = bus2_bar_h - 11;                  // 183
+bus2_ins_w        = bus2_total_w;
+bus2_ins_h        = 21;
+bus2_ins_t        = 21;
+bus2_ins_y_lo     = (bus2_hole_y_lo + bus2_hole_y_mid)/2 - bus2_ins_h/2;  // 43.5
+bus2_ins_y_hi     = (bus2_hole_y_mid + bus2_hole_y_hi)/2 - bus2_ins_h/2;  // 129.5
+bus2_colors       = ["red", "blue", "yellow", "black"];
+
+module supply_bus_v2() {
+    // Insulator bars behind the copper bars
+    color("ivory") translate([0, bus2_ins_y_lo, 0])
+        cube([bus2_ins_w, bus2_ins_h, bus2_ins_t]);
+    color("ivory") translate([0, bus2_ins_y_hi, 0])
+        cube([bus2_ins_w, bus2_ins_h, bus2_ins_t]);
+
+    // 4 copper bars flush against the front of the insulators
+    for (i = [0 : 3]) {
+        bar_x = i * bus2_pole_pitch;
+        color(bus2_colors[i])
+            translate([bar_x, 0, bus2_ins_t])
+                difference() {
+                    cube([bus2_bar_w, bus2_bar_h, bus2_bar_t]);
+                    for (hy = [bus2_hole_y_lo, bus2_hole_y_mid, bus2_hole_y_hi])
+                        translate([bus2_bar_w/2, hy, -1])
+                            cylinder(h = bus2_bar_t + 2,
+                                     d = bus2_hole_d, $fn = 32);
+                }
+        // RBYN phase label above each bar
+        color("white")
+            translate([bar_x + bus2_bar_w/2 - 3,
+                       bus2_bar_h + 3,
+                       bus2_ins_t + bus2_bar_t + 0.1])
+                linear_extrude(0.5)
+                    text(["R","B","Y","N"][i], size = 10, valign = "bottom");
+    }
+}
+
+// 4-pole MCCB: 127 x 194 x 80, terminal holes 8.5 dia at 35mm pitch,
+// 11mm from bottom end (input) and 11mm from top end (output).
+mccb2_w         = 127;
+mccb2_h         = 194;
+mccb2_d         = 80;
+mccb2_hole_d    = 8.5;
+mccb2_pitch     = 35;
+mccb2_holes_n   = 4;
+mccb2_first_x   = (mccb2_w - (mccb2_holes_n - 1) * mccb2_pitch) / 2;   // 11
+mccb2_y_in      = 11;
+mccb2_y_out     = mccb2_h - 11;                                       // 183
+
+module supply_mccb_v2() {
+    color("darkorange", 0.85)
+        difference() {
+            cube([mccb2_w, mccb2_h, mccb2_d]);
+            // input row holes (bottom)
+            for (i = [0 : mccb2_holes_n - 1])
+                translate([mccb2_first_x + i * mccb2_pitch, mccb2_y_in, -1])
+                    cylinder(h = mccb2_d + 2, d = mccb2_hole_d, $fn = 32);
+            // output row holes (top)
+            for (i = [0 : mccb2_holes_n - 1])
+                translate([mccb2_first_x + i * mccb2_pitch, mccb2_y_out, -1])
+                    cylinder(h = mccb2_d + 2, d = mccb2_hole_d, $fn = 32);
+        }
+    color("white")
+        translate([5, mccb2_h - 12, mccb2_d + 0.1])
+            linear_extrude(0.5) text("MCCB 4P", size = 12, valign = "top");
+}
+
+// Combined Supply MCCB Bus: bus at local origin, MCCB stacked above with
+// the MCCB input row aligned to the bus top hole row. Treat as a single
+// unit when placing into the enclosure.
+module supply_mccb_bus() {
+    supply_bus_v2();
+    translate([0, bus2_hole_y_hi - mccb2_y_in, 0]) supply_mccb_v2();
+}
+
+// Locked-unit dimensions of supply_mccb_bus (for placement math)
+smb_w = bus2_total_w;                                  // 127
+smb_h = (bus2_hole_y_hi - mccb2_y_in) + mccb2_h;       // 172 + 194 = 366
+smb_d = max(bus2_ins_t + bus2_bar_t, mccb2_d);         // 80
+
+// Placement of the Supply MCCB Bus unit (origin = lower-left of bus)
+smb_pos = [wall_w - 150 - smb_w/2, 400, stabilizer[2] - 110];
+
+// 1mm sheet just behind the Supply MCCB Bus. The gap between this sheet
+// and the wall is the cable nest.
+smb_back_sheet_t = 1;
+smb_zone_w     = enc_w - stabilizer[0];           // supply-zone width
+smb_zone_x     = enc_x + stabilizer[0];
+smb_back_sheet_margin = (smb_zone_w - smb_w) / 2; // side margin -> also top/bottom
+module smb_back_sheet() {
+    color("gainsboro")
+        translate([smb_zone_x,
+                   smb_pos[1] - smb_back_sheet_margin,
+                   smb_pos[2] - smb_back_sheet_t])
+            cube([smb_zone_w,
+                  smb_h + 2 * smb_back_sheet_margin,
+                  smb_back_sheet_t]);
+}
+
+// Global positions of the bus copper-bar holes (front face)
+function smb_hole_pos(i, row_y) = [
+    smb_pos[0] + i * bus2_pole_pitch + bus2_bar_w/2,
+    smb_pos[1] + row_y,
+    smb_pos[2] + bus2_ins_t + bus2_bar_t
+];
+
+
+// ====== Compact Supply zone contents (v1) ======
+// 4 vertical flat copper bars (RBYN), 70mm centers, 3 bolts each:
+//   bottom bolt = Supply (mains conduit)
+//   middle bolt = Solar (AC DB drop link)
+//   top    bolt = MCCB input
+// 4-pole MCCB sits above the bus. Input terminals at bottom (aligned with
+// bus top bolts at 70mm centers), output terminals at top of MCCB body
+// 200mm above the input.
+bus_count     = 4;
+bus_spacing   = 70;                  // center-to-center
+bus_bar_w     = 25;                  // flat bar width
+bus_bar_h     = 250;                 // bar height (3 bolts vertically)
+bus_bar_t     = 8;                   // bar thickness in Z
+bus_bar_y     = 460;
+bus_total_w   = (bus_count - 1) * bus_spacing + bus_bar_w;
+bus_first_cx  = supply_zone_x + (supply_zone_w - bus_total_w) / 2 + bus_bar_w / 2;
+bus_bar_z     = z_front - 100;
+bus_bolt_d    = 12;
+bus_bolt_len  = 30;
+bus_colors    = ["red", "blue", "yellow", "black"];   // RBYN
+bolt_low_y    = bus_bar_y + 30;
+bolt_mid_y    = bus_bar_y + bus_bar_h / 2;
+bolt_top_y    = bus_bar_y + bus_bar_h - 30;
+function bus_cx(i) = bus_first_cx + i * bus_spacing;
+
+// 4-pole MCCB - 4 input terminals (bottom), 4 output terminals (top), 200mm apart.
+// Terminal x positions aligned to bus bar centers.
+prov_mccb     = [bus_total_w + 30, 200, 150];         // wider than v1 mccb
+prov_mccb_x   = bus_first_cx - bus_bar_w / 2 - 15;    // centered on the 4 bars
+prov_mccb_y   = bus_bar_y + bus_bar_h + 30;           // gap above bus top
+mccb_in_y     = prov_mccb_y;
+mccb_out_y    = prov_mccb_y + 200;
+
+// ====== Stabilizer (off-the-shelf, sits in cutout) ======
+// Ports face RIGHT (towards the supply zone & MCCB). Output @ low Z, Input @ high Z.
+stab_x       = enc_x;
+stab_y       = 0;
+stab_in_z    = stabilizer[2] - 80;
+stab_out_z   = 80;
 stab_ports_y = 200;
 
 // ====== Window-top conduit row ======
@@ -167,9 +315,9 @@ conduit_pitch  = 60;
 conduit_x0     = window_x + (window_w - (conduit_count - 1) * conduit_pitch) / 2;
 
 // ====== Z anchors for cable layers ======
-z_front = enc_d - 60;   // front-layer routing (MCCB feed, stab IN)
-z_mid   = ct_clamp_z;   // CT layer (stab RETURN, CT signal)
-z_back  = busbar_z + busbar_t / 2;
+z_front = enc_d - 60;        // front-layer routing (stab FEED, MCCB feed)
+z_mid   = 110;               // CT / stab RETURN
+z_back  = 20;                // heavy busbar backplate layer
 
 // =========================================================================
 // MODULES
@@ -197,11 +345,10 @@ module window_cutout() {
 module labeled_box(dim, name, col) {
     color(col) cube(dim);
     color("white") translate([4, dim[1] - 8, dim[2] + 0.1])
-        linear_extrude(0.5) text(name, size = 28, valign = "top");
+        linear_extrude(0.5) text(name, size = 26, valign = "top");
 }
 
-// Cable polyline as hulled spheres
-module cable(points, dia = 10, col = "red") {
+module polyline_cable(points, dia = 10, col = "red") {
     for (i = [0 : len(points) - 2])
         color(col) hull() {
             translate(points[i])     sphere(d = dia, $fn = 10);
@@ -209,143 +356,416 @@ module cable(points, dia = 10, col = "red") {
         }
 }
 
-// ====== Enclosure shell + partitions ======
+// ====== Parametric wire router ======
+// Routes a wire from p1 (heading out in dir1) to p2 (arriving heading in dir2).
+// dir1, dir2 must be axis-aligned unit vectors (e.g. [0,1,0], [0,0,-1]).
+// Path = straight + arc + straight + arc + straight, all 90 deg, bend radius
+// defaults to 10*r. Perpendicular dir1/dir2 handles any 3D offset. Parallel
+// (same or opposite) cases only handle offsets in the plane of dir1 and one
+// perpendicular axis; out-of-plane offset is warned and ignored.
+function _vdot(a, b)   = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+function _vadd(a, b)   = [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+function _vsub(a, b)   = [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+function _vmul(s, v)   = [s*v[0], s*v[1], s*v[2]];
+function _vcross(a, b) = [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+function _vabs(v)      = [abs(v[0]), abs(v[1]), abs(v[2])];
+function _axis_idx(d)  = (d[0] != 0) ? 0 : ((d[1] != 0) ? 1 : 2);
+
+module _straight(p, dir, L, r) {
+    if (L > 0.001) {
+        translate(p)
+        // align cylinder (+Z) with dir
+        rotate(dir == [0,0, 1] ? [0,0,0]   :
+               dir == [0,0,-1] ? [180,0,0] :
+               dir == [1,0,0]  ? [0,90,0]  :
+               dir == [-1,0,0] ? [0,-90,0] :
+               dir == [0,1,0]  ? [-90,0,0] :
+                                 [90,0,0])
+        cylinder(h=L, r=r, $fn=20);
+        // soft cap at start to hide cylinder-arc seam
+        translate(p) sphere(r=r, $fn=20);
+    } else {
+        translate(p) sphere(r=r, $fn=20);
+    }
+}
+
+// 90-deg arc starting at local origin, entering in dir_in, exiting in dir_out.
+// Arc center sits at br*dir_out. End point lands at br*(dir_in+dir_out).
+module _arc(dir_in, dir_out, br, r) {
+    cax = _vcross(dir_in, dir_out);
+    T   = _vmul(br, dir_out);
+    multmatrix([
+        [-dir_out[0], dir_in[0], cax[0], T[0]],
+        [-dir_out[1], dir_in[1], cax[1], T[1]],
+        [-dir_out[2], dir_in[2], cax[2], T[2]],
+        [0, 0, 0, 1]
+    ])
+    rotate_extrude(angle=90, $fn=48) translate([br, 0]) circle(r=r, $fn=20);
+}
+
+// 2-arc path: 3 straights + 2 arcs through one intermediate direction.
+module _route3(p1, dir1, dir_mid, dir2, L1, L2, L3, br, r, col) {
+    color(col) union() {
+        _straight(p1, dir1, L1, r);
+        a1s = _vadd(p1, _vmul(L1, dir1));
+        translate(a1s) _arc(dir1, dir_mid, br, r);
+        a1e = _vadd(a1s, _vmul(br, _vadd(dir1, dir_mid)));
+        _straight(a1e, dir_mid, L2, r);
+        a2s = _vadd(a1e, _vmul(L2, dir_mid));
+        translate(a2s) _arc(dir_mid, dir2, br, r);
+        a2e = _vadd(a2s, _vmul(br, _vadd(dir_mid, dir2)));
+        _straight(a2e, dir2, L3, r);
+        translate(_vadd(a2e, _vmul(L3, dir2))) sphere(r=r, $fn=20);
+    }
+}
+
+// 3-arc path: 4 straights + 3 arcs through two intermediate directions.
+module _route4(p1, dir1, dir_a, dir_b, dir2, L1, L2, L3, L4, br, r, col) {
+    color(col) union() {
+        _straight(p1, dir1, L1, r);
+        a1s = _vadd(p1, _vmul(L1, dir1));
+        translate(a1s) _arc(dir1, dir_a, br, r);
+        a1e = _vadd(a1s, _vmul(br, _vadd(dir1, dir_a)));
+        _straight(a1e, dir_a, L2, r);
+        a2s = _vadd(a1e, _vmul(L2, dir_a));
+        translate(a2s) _arc(dir_a, dir_b, br, r);
+        a2e = _vadd(a2s, _vmul(br, _vadd(dir_a, dir_b)));
+        _straight(a2e, dir_b, L3, r);
+        a3s = _vadd(a2e, _vmul(L3, dir_b));
+        translate(a3s) _arc(dir_b, dir2, br, r);
+        a3e = _vadd(a3s, _vmul(br, _vadd(dir_b, dir2)));
+        _straight(a3e, dir2, L4, r);
+        translate(_vadd(a3e, _vmul(L4, dir2))) sphere(r=r, $fn=20);
+    }
+}
+
+module wire(p1, dir1, p2, dir2, r=2, col="black", bend_r=undef) {
+    // dir1, dir2 are OUTWARD tangents: each points FROM its endpoint INTO the
+    // cable interior. Internally we use travel direction (p1 -> p2), which at
+    // p2 is the negation of dir2.
+    dir2t = _vmul(-1, dir2);
+    br = is_undef(bend_r) ? 10*r : bend_r;
+    delta = _vsub(p2, p1);
+    dot   = _vdot(dir1, dir2t);
+    same  = (dir1 == dir2t);
+    opp   = (_vadd(dir1, dir2t) == [0,0,0]);
+
+    if (!same && !opp) {
+        // Perpendicular: intermediate goes along the third (orthogonal) axis.
+        third_unsigned = _vabs(_vcross(dir1, dir2t));
+        d_third = _vdot(delta, third_unsigned);
+        dir_mid = _vmul(d_third >= 0 ? 1 : -1, third_unsigned);
+        d1 = _vdot(delta, dir1);
+        d2 = _vdot(delta, dir2t);
+        dm = abs(d_third);
+        L1 = d1 - br; L2 = dm - 2*br; L3 = d2 - br;
+        if (L1 < 0 || L2 < 0 || L3 < 0)
+            echo(str("WARN wire perp: clamped legs L1=", L1, " L2=", L2, " L3=", L3));
+        _route3(p1, dir1, dir_mid, dir2t, max(0,L1), max(0,L2), max(0,L3), br, r, col);
+    } else {
+        // same or opp: parallel dirs. Both 3-arc routes leak 2*br into a perp
+        // axis when its delta is zero (arc displacements don't cancel because
+        // L = max(0, ...) clamps the negative inner leg). So when exactly one
+        // perp axis has offset, fall back to a 2-arc route through it.
+        ai = _axis_idx(dir1);
+        a = (ai+1) % 3; b = (ai+2) % 3;
+        da = delta[a]; db = delta[b];
+        d_dir1 = _vdot(delta, dir1);
+        if (abs(da) < 1e-6 && abs(db) < 1e-6) {
+            // Pure axial.
+            if (same) {
+                color(col) {
+                    _straight(p1, dir1, max(0, d_dir1), r);
+                    translate(p2) sphere(r=r, $fn=20);
+                }
+            } else {
+                echo("WARN wire opp: no perp offset, cannot route U-turn");
+            }
+        } else if (abs(da) < 1e-6 || abs(db) < 1e-6) {
+            // Exactly one perp axis carries the offset: 2-arc route.
+            ax_p   = (abs(da) > abs(db)) ? a : b;
+            d_perp = (ax_p == a) ? da : db;
+            sp     = d_perp >= 0 ? 1 : -1;
+            dir_p  = [ax_p==0?sp:0, ax_p==1?sp:0, ax_p==2?sp:0];
+            br_eff = min(br, abs(d_perp) / 2);
+            if (br_eff < br)
+                echo(str("WARN wire: bend_r ", br, " -> ", br_eff,
+                         " (single perp offset |d|=", abs(d_perp), ")"));
+            L_perp = max(0, abs(d_perp) - 2*br_eff);
+            if (same) {
+                // dir1 -> dir_p -> dir1: Δdir1 = L1 + L3 + 2*br_eff
+                L_total = d_dir1 - 2*br_eff;
+                L1 = max(0, L_total/2);
+                L3 = max(0, L_total - L1);
+                if (L_total < 0)
+                    echo(str("WARN wire same-deg: clamped d_dir1=", d_dir1));
+                _route3(p1, dir1, dir_p, dir1, L1, L_perp, L3, br_eff, r, col);
+            } else {
+                // dir1 -> dir_p -> -dir1: Δdir1 = L1 - L3 (arcs cancel)
+                L1 = max(0,  d_dir1);
+                L3 = max(0, -d_dir1);
+                _route3(p1, dir1, dir_p, dir2t, L1, L_perp, L3, br_eff, r, col);
+            }
+        } else {
+            // Both perp axes carry offset: 3-arc route.
+            ax_a = abs(da) >= abs(db) ? a : b;
+            ax_b = a + b - ax_a;
+            sa = (delta[ax_a] >= 0) ? 1 : -1;
+            sb = (delta[ax_b] >= 0) ? 1 : -1;
+            dir_a = [ax_a==0?sa:0, ax_a==1?sa:0, ax_a==2?sa:0];
+            dir_b = [ax_b==0?sb:0, ax_b==1?sb:0, ax_b==2?sb:0];
+            br_eff = min(br, abs(delta[ax_a])/2, abs(delta[ax_b])/2);
+            if (br_eff < br)
+                echo(str("WARN wire: bend_r ", br, " -> ", br_eff,
+                         " (perp deltas a=", abs(delta[ax_a]),
+                         " b=", abs(delta[ax_b]), ")"));
+            L2 = max(0, abs(delta[ax_a]) - 2*br_eff);
+            L3 = max(0, abs(delta[ax_b]) - 2*br_eff);
+            if (same) {
+                L_total = d_dir1 - 2*br_eff;
+                L1 = max(0, L_total/2);
+                L4 = max(0, L_total - L1);
+                if (L_total < 0)
+                    echo(str("WARN wire same-dir: clamped d_dir1=", d_dir1));
+                _route4(p1, dir1, dir_a, dir_b, dir1, L1, L2, L3, L4, br_eff, r, col);
+            } else {
+                L1 = max(br_eff, d_dir1 + br_eff);
+                L4 = L1 - d_dir1;
+                _route4(p1, dir1, dir_a, dir_b, dir2t, L1, L2, L3, L4, br_eff, r, col);
+            }
+        }
+    }
+}
+
+// ====== Multi-core cable on top of wire() ======
+// Routes a `cores`-conductor bundle (single fat wire of diameter
+// (1 + sqrt(cores)) * d in sheath_col). Per-core wires inside the sheath
+// are NOT drawn.
+//
+// dir1, dir2: outward tangents at each endpoint (point FROM endpoint INTO
+// the cable). Same convention as wire().
+//
+// Splay (optional) via spread1 / spread2 vectors:
+//   spread = [0,0,0]   -> no splay at that end (default)
+//   spread = [35,0,0]  -> cores fan along X at 35mm pitch
+// Magnitude = pitch, direction = spread axis. Splay length at each end
+// defaults to 2 * cores * |spread|, overridable via splay_length1/2.
+// At a splayed end the sheath terminates `splay_length` from p_i along
+// dir_i (into bundle interior); cores then run straight from their
+// per-core start (around coll_i) to per-core end (around p_i).
+function _cable_colors(n) =
+    n == 5 ? ["red","blue","yellow","black","green"] :
+    n == 4 ? ["red","blue","yellow","black"]         :
+    n == 3 ? ["red","blue","yellow"]                 :
+    n == 2 ? ["red","black"]                         :
+            [for (i=[0:n-1]) "black"];
+
+module cable(p1, dir1, p2, dir2, cores=4, d=2,
+             colors=undef, sheath_col="black", bend_r=undef,
+             spread1=[0,0,0], spread2=[0,0,0],
+             splay_length1=undef, splay_length2=undef) {
+    cols     = is_undef(colors) ? _cable_colors(cores) : colors;
+    R_bundle = (1 + sqrt(cores)) * d / 2;
+    s1_mag   = norm(spread1);
+    s2_mag   = norm(spread2);
+    splen1   = is_undef(splay_length1) ? cores * s1_mag : splay_length1;
+    splen2   = is_undef(splay_length2) ? cores * s2_mag : splay_length2;
+
+    // Collection points offset from p1/p2 INTO the cable along dir1/dir2.
+    coll1 = (s1_mag == 0) ? p1 : _vadd(p1, _vmul(splen1, dir1));
+    coll2 = (s2_mag == 0) ? p2 : _vadd(p2, _vmul(splen2, dir2));
+
+    // Bundle (sheath only)
+    wire(coll1, dir1, coll2, dir2, r=R_bundle, col=sheath_col, bend_r=bend_r);
+
+    // Splay at end 1: cores fan FROM the collection point (coll1) OUT to
+    // per-core endpoints (p1 + k*spread1).
+    if (s1_mag > 0) {
+        for (i = [0 : cores-1]) {
+            k = i - (cores - 1) / 2;
+            e = _vadd(p1, _vmul(k, spread1));
+            color(cols[i]) hull() {
+                translate(coll1) sphere(r=d/2, $fn=20);
+                translate(e)     sphere(r=d/2, $fn=20);
+            }
+        }
+    }
+    // Splay at end 2: cores fan FROM coll2 OUT to per-core endpoints.
+    if (s2_mag > 0) {
+        for (i = [0 : cores-1]) {
+            k = i - (cores - 1) / 2;
+            e = _vadd(p2, _vmul(k, spread2));
+            color(cols[i]) hull() {
+                translate(coll2) sphere(r=d/2, $fn=20);
+                translate(e)     sphere(r=d/2, $fn=20);
+            }
+        }
+    }
+}
+
+// cable_run: chain cable() calls along a list of waypoints. Each waypoint
+// is [p, dir] (position and outward-tangent direction). Splay (spread1/
+// spread2, splay_length1/2) only applies to the first and last waypoints.
+module cable_run(waypoints, cores=4, d=2,
+                 colors=undef, sheath_col="black", bend_r=undef,
+                 spread1=[0,0,0], spread2=[0,0,0],
+                 splay_length1=undef, splay_length2=undef) {
+    n = len(waypoints);
+    for (i = [0 : n - 2]) {
+        a = waypoints[i];
+        b = waypoints[i + 1];
+        // Waypoint dir is the outward-tangent (cable interior direction) from
+        // the perspective of the PREVIOUS section. For the next section's p1
+        // we need the opposite (interior direction from the OTHER side). The
+        // first waypoint is only a "start" so it stays as-is.
+        d1 = (i == 0) ? a[1] : [-a[1][0], -a[1][1], -a[1][2]];
+        sp1 = (i == 0)     ? spread1 : [0, 0, 0];
+        sp2 = (i == n - 2) ? spread2 : [0, 0, 0];
+        sl1 = (i == 0)     ? splay_length1 : undef;
+        sl2 = (i == n - 2) ? splay_length2 : undef;
+        cable(a[0], d1, b[0], b[1],
+              cores=cores, d=d,
+              colors=colors, sheath_col=sheath_col, bend_r=bend_r,
+              spread1=sp1, spread2=sp2,
+              splay_length1=sl1, splay_length2=sl2);
+    }
+}
+
+// ====== Enclosure shell (with stab cutout) ======
 module enclosure_shell() {
-    // backplate
+    // backplate (full rectangle)
     color("lightgray", 0.85) translate([enc_x, enc_y, 0])
         cube([enc_w, enc_h, enc_t]);
     // outer walls
     color("lightgray", 0.4) {
-        translate([enc_x, enc_y, 0]) cube([enc_t, enc_h, enc_d]);
-        translate([enc_x + enc_w - enc_t, enc_y, 0]) cube([enc_t, enc_h, enc_d]);
-        translate([enc_x, enc_y, 0]) cube([enc_w, enc_t, enc_d]);
-        translate([enc_x, enc_y + enc_h - enc_t, 0]) cube([enc_w, enc_t, enc_d]);
+        // right wall
+        translate([enc_x + enc_w - enc_t, enc_y, 0])
+            cube([enc_t, enc_h, enc_d]);
+        // top wall
+        translate([enc_x, enc_y + enc_h - enc_t, 0])
+            cube([enc_w, enc_t, enc_d]);
+        // left wall (only above the stab cutout)
+        translate([enc_x, cutout_h, 0])
+            cube([enc_t, enc_h - cutout_h - enc_t, enc_d]);
+        // bottom wall (only right of cutout - supply zone has a floor)
+        translate([supply_zone_x, enc_y, 0])
+            cube([supply_zone_w, enc_t, enc_d]);
+        // cutout-supply-zone wall (right wall of cutout / left wall of supply)
+        translate([supply_zone_x, enc_y, 0])
+            cube([enc_t, cutout_h, enc_d]);
     }
-    // vertical partition between left and right halves
+    // partition between Distribution and Solar (upper section only)
     color("lightgray", 0.4)
-        translate([partition_x, enc_y + enc_t, 0])
-            cube([partition_t, enc_h - 2 * enc_t, enc_d - 30]);
-    // nest partition (separates Cable Nest from Supply Module, both in Supply band)
-    color("lightgray", 0.4)
-        translate([nest_partition_x, sup_y, 0])
-            cube([nest_partition_t, sup_h, enc_d - 30]);
-    // horizontal shelves on the LEFT half: top of Supply, top of Distribution
+        translate([partition_x, upper_y, 0])
+            cube([partition_t, mon_y - upper_y, enc_d - 30]);
+    // horizontal shelves
     color("lightgray", 0.4) {
-        translate([enc_x + enc_t, sup_y + sup_h, 0])
-            cube([partition_x - enc_x - enc_t, 5, enc_d - 30]);
-        translate([enc_x + enc_t, dist_y + dist_h, 0])
-            cube([partition_x - enc_x - enc_t, 5, enc_d - 30]);
+        // top of cutout/supply zone = bottom of upper section
+        // (front layer only; back-Z stays open so slack can pass through)
+        translate([enc_x + enc_t, cutout_h, slack_z_front])
+            cube([enc_w - 2 * enc_t, 5, enc_d - 30 - slack_z_front]);
+        // top of upper section = bottom of Monitoring
+        translate([enc_x + enc_t, mon_y, 0])
+            cube([enc_w - 2 * enc_t, 5, enc_d - 30]);
     }
-    // horizontal shelf on the RIGHT half: top of Supply
-    color("lightgray", 0.4)
-        translate([partition_x + partition_t, sup_y + sup_h, 0])
-            cube([enc_x + enc_w - partition_x - partition_t - enc_t, 5, enc_d - 30]);
 }
 
-// Door outlines drawn as transparent front-face plates
+// ====== Doors ======
 module enclosure_doors() {
     door_z = enc_d - 4;
     door_t = 3;
-    // 1a. Cable Nest door (bottom-left of Supply band)
-    color("teal", 0.22)
-        translate([enc_x + 10, sup_y, door_z])
-            cube([nest_partition_x - enc_x - 15, sup_h, door_t]);
-    // 1b. Supply Module door (bottom, right of nest)
+    // Stab cutout - open front, no door (label only)
+    color("white")
+        translate([enc_x + 15, cutout_h - 20, door_z + 0.5])
+            linear_extrude(0.5) text("STAB CUTOUT (open)", size = 26, valign = "top");
+    // Compact Supply zone door (slack lives in back-Z behind these components)
     color("steelblue", 0.22)
-        translate([nest_partition_x + nest_partition_t + 5, sup_y, door_z])
-            cube([enc_x + enc_w - nest_partition_x - nest_partition_t - 15,
-                  sup_h, door_t]);
-    // 2. Monitoring door (left, middle-low)
-    color("seagreen", 0.22)
-        translate([enc_x + 10, mon_y, door_z])
-            cube([partition_x - enc_x - 20, mon_h, door_t]);
-    // 3. Distribution Module door (left, upper)
+        translate([supply_zone_x + 5, 10, door_z])
+            cube([supply_zone_w - 15, cutout_h - 20, door_t]);
+    // Distribution Module door (upper left)
     color("orange", 0.22)
-        translate([enc_x + 10, dist_y, door_z])
-            cube([partition_x - enc_x - 20, dist_h, door_t]);
-    // 4. Solar chain door (right, full height above Supply)
+        translate([enc_x + 10, upper_y + 5, door_z])
+            cube([partition_x - enc_x - 15, mon_y - upper_y - 10, door_t]);
+    // Solar chain door (upper right)
     color("plum", 0.22)
-        translate([partition_x + partition_t + 5, sup_y + sup_h + 10, door_z])
-            cube([enc_x + enc_w - partition_x - partition_t - 25,
-                  enc_h - sup_h - 50, door_t]);
+        translate([partition_x + partition_t + 5, upper_y + 5, door_z])
+            cube([enc_x + enc_w - partition_x - partition_t - 15,
+                  mon_y - upper_y - 10, door_t]);
+    // Monitoring door (top, full width)
+    color("seagreen", 0.22)
+        translate([enc_x + 10, mon_y + 5, door_z])
+            cube([enc_w - 20, mon_h - 10, door_t]);
 }
 
-// ====== Cable Nest (slack for 4x10sqmm stab feed + return) ======
-module cable_nest() {
-    cx = nest_inner_x + nest_inner_w / 2;
-    cy_top = nest_inner_y + nest_inner_h - 30;
-    cy_bot = nest_inner_y + 30;
+// ====== Compact Supply zone contents ======
+module compact_supply() {
+    // 4 vertical flat copper bars (RBYN). Each bar has 3 bolts:
+    // bottom = supply, middle = solar, top = MCCB.
+    for (i = [0 : bus_count - 1]) {
+        bar_x = bus_cx(i) - bus_bar_w / 2;
+        color(bus_colors[i])
+            translate([bar_x, bus_bar_y, bus_bar_z])
+                cube([bus_bar_w, bus_bar_h, bus_bar_t]);
+        // 3 bolts sticking forward (Z+) for O-ring lugs
+        for (by = [bolt_low_y, bolt_mid_y, bolt_top_y])
+            color("goldenrod")
+                translate([bus_cx(i), by, bus_bar_z + bus_bar_t])
+                    rotate([-90, 0, 0])
+                        cylinder(h = bus_bolt_d, d = bus_bolt_d,
+                                 center = true, $fn = 16);
+        // Bolt heads (slightly bigger discs at the front)
+        for (by = [bolt_low_y, bolt_mid_y, bolt_top_y])
+            color("dimgray")
+                translate([bus_cx(i), by, bus_bar_z + bus_bar_t + bus_bolt_len])
+                    rotate([0, 0, 0])
+                        cylinder(h = 4, d = bus_bolt_d + 4, $fn = 16);
+        // Tiny phase label
+        color("white")
+            translate([bus_cx(i) - 4, bus_bar_y + bus_bar_h + 3,
+                       bus_bar_z + bus_bar_t + 0.1])
+                linear_extrude(0.5)
+                    text(["R","B","Y","N"][i], size = 14, valign = "bottom");
+    }
 
-    // Stab FEED slack (front layer) - enters at left wall, loops, exits right wall
-    cable([[enc_x - 3,                stab_ports_y, z_front],
-           [nest_inner_x + 10,        stab_ports_y, z_front],
-           [nest_inner_x + 10,        cy_top,       z_front],
-           [cx + 40,                  cy_top,       z_front],
-           [cx + 40,                  cy_bot,       z_front],
-           [nest_partition_x - 5,     cy_bot,       z_front],
-           [nest_partition_x - 5,     stab_ports_y, z_front]],
-          dia = 22, col = "royalblue");
-
-    // Stab RETURN slack (mid layer) - enters at left, loops, exits top of nest
-    cable([[enc_x - 3,                stab_ports_y, z_mid],
-           [nest_inner_x + 30,        stab_ports_y, z_mid],
-           [nest_inner_x + 30,        cy_bot,       z_mid],
-           [cx - 30,                  cy_bot,       z_mid],
-           [cx - 30,                  cy_top,       z_mid],
-           [nest_partition_x - 25,    cy_top,       z_mid],
-           [nest_partition_x - 25,    nest_inner_y + nest_inner_h - 5, z_mid]],
-          dia = 22, col = "midnightblue");
-
+    // 4-pole provisional MCCB
+    color("darkorange", 0.5)
+        translate([prov_mccb_x, prov_mccb_y, z_front - prov_mccb[2]])
+            cube(prov_mccb);
     color("white")
-        translate([enc_x + 15, sup_y + sup_h - 12, enc_d - 5])
-            linear_extrude(0.5) text("CABLE NEST", size = 22, valign = "top");
-}
-
-// ====== Supply Module ======
-module supply_module() {
-    // Input MCCB - PROVISIONED ONLY (current stabilizer has built-in input MCB).
-    // Translucent to mark reserved space; routing avoids this volume.
-    color("darkorange", 0.3)
-        translate([mccb_x, mccb_y, z_front - mccb[2]])
-            cube(mccb);
-    color("white") translate([mccb_x + 4, mccb_y + mccb[1] - 8, z_front + 0.1])
-        linear_extrude(0.5) text("MCCB (provision)", size = 22, valign = "top");
-    // 4-pole horizontal busbar (4 parallel bars stacked in Y)
-    for (i = [0 : 3])
-        color("saddlebrown")
-            translate([busbar_x,
-                       busbar_y + i * (busbar_h / 4),
-                       busbar_z])
-                cube([busbar_w, busbar_h / 4 - 2, busbar_t]);
-    color("white")
-        translate([busbar_x + 8, busbar_y - 18, busbar_z + busbar_t + 0.1])
-            linear_extrude(0.5) text("4P SUPPLY BUSBAR", size = 22);
-    // CT clamps - one per pole at ct_section_x
-    for (i = [0 : 3])
-        color("dimgray")
-            translate([ct_section_x,
-                       busbar_y + i * (busbar_h / 4) + busbar_h / 8,
-                       ct_clamp_z])
-                rotate([0, 90, 0])
-                    cylinder(h = 25, d = ct_clamp_dia, center = true, $fn = 24);
+        translate([prov_mccb_x + 4, prov_mccb_y + prov_mccb[1] - 8,
+                   z_front + 0.1])
+            linear_extrude(0.5)
+                text("MCCB 4P (provision)", size = 18, valign = "top");
+    // MCCB input terminals (bottom) - 4 studs aligned with bus bar centers
+    for (i = [0 : 3]) {
+        color("goldenrod")
+            translate([bus_cx(i), mccb_in_y - 5, z_front - prov_mccb[2] / 2])
+                rotate([-90, 0, 0])
+                    cylinder(h = 10, d = 10, center = true, $fn = 16);
+        // Output terminals at top of MCCB
+        color("goldenrod")
+            translate([bus_cx(i), mccb_out_y + 5, z_front - prov_mccb[2] / 2])
+                rotate([-90, 0, 0])
+                    cylinder(h = 10, d = 10, center = true, $fn = 16);
+    }
 }
 
 // ====== Solar chain ======
 module solar_chain() {
-    translate([acdb_x, acdb_y, z_front - dbox[2]])
-        labeled_box(dbox, "Solar AC DB", "indianred");
+    translate([acdb_x, acdb_y, z_front - dbox_int[2]])
+        labeled_box(dbox_int, "AC DB intls", "indianred");
     translate([inv_x, inv_y, z_front - inverter[2]])
         labeled_box(inverter, "INVERTER", "steelblue");
-    translate([sdb_x, sdb_y, z_front - dbox[2]])
-        labeled_box(dbox, "SOLAR DC DB", "indianred");
+    translate([sdb_x, sdb_y, z_front - dbox_int[2]])
+        labeled_box(dbox_int, "Solar IN intls", "indianred");
 }
 
 // ====== Distribution Module (VTPN) ======
 module distribution_module() {
-    // Output / incomer MCCB at the bottom of the central busbar
+    // Output MCCB at the bottom of the central busbar
     translate([dist_mccb_x, dist_mccb_y, z_front - dist_mccb[2]])
         labeled_box(dist_mccb, "OUT MCCB", "darkorange");
-    // Central 4P vertical busbar (4 bars side-by-side in X)
+    // Central 4P vertical busbar
     for (i = [0 : 3])
         color("saddlebrown")
             translate([dist_bb_x + i * (dist_bb_w / 4),
@@ -362,31 +782,64 @@ module distribution_module() {
             translate([mcb_right_x, mcbs_y + i * mcb_unit[1], enc_t + 20])
                 cube([mcb_unit[0] - 2, mcb_unit[1] - 2, mcb_unit[2]]);
     color("white")
-        translate([left_x + 5, dist_y + dist_h - 15, enc_t + mcb_unit[2] + 25])
-            linear_extrude(0.5)
-                text("DISTRIBUTION (VTPN, 20 ways)", size = 22);
+        translate([dist_x + 10, dist_y + dist_h - 15,
+                   enc_t + mcb_unit[2] + 25])
+            linear_extrude(0.5) text("DISTRIBUTION (VTPN)", size = 22);
 }
 
 // ====== Monitoring compartment ======
 module monitoring_module() {
-    // DIN rail
     color("silver")
-        translate([left_x + 20, m30_y + m30[1] - 25, enc_t + 8])
-            cube([left_w - 40, 35, 7]);
-    // Two M30s side by side
+        translate([enc_x + 30, m30_y + m30[1] - 25, enc_t + 8])
+            cube([enc_w - 60, 35, 7]);
     for (i = [0, 1])
         translate([m30_x0 + i * m30_pitch, m30_y, enc_t + 15])
             labeled_box(m30, str("M30 #", i + 1), "navy");
     color("white")
-        translate([left_x + 5, mon_y + mon_h - 12, enc_t + m30[2] + 25])
+        translate([enc_x + 10, mon_y + mon_h - 12, enc_t + m30[2] + 25])
             linear_extrude(0.5) text("MONITORING", size = 22);
 }
 
-// ====== Stabilizer (external) ======
+// ====== Cable guide (curls cables from front-Z to back-Z) ======
+// Shown as a quarter-pipe / curve at the lower-left of the supply zone,
+// guiding the stab cables from their stab-side termination back into the
+// back-Z slack zone behind the MCCB+bus.
+module cable_guide() {
+    gx = supply_zone_x + 5;
+    gy = stab_ports_y - 30;
+    color("dimgray", 0.6)
+        translate([gx, gy, slack_z_back + 20])
+            rotate([0, 0, 0])
+                difference() {
+                    cube([60, 90, 80]);
+                    translate([10, -1, -1]) cube([50, 92, 70]);
+                }
+    color("white")
+        translate([gx + 4, gy + 80, slack_z_back + 85])
+            linear_extrude(0.5)
+                text("guide", size = 14, valign = "top");
+}
+
+// ====== Back-Z cable slack zone marker ======
+// Translucent box marking the reserved volume behind the front-layer Supply
+// equipment, where the stab feed/return U-turns and service slack live.
+// (The actual cable runs are drawn by run_mccb_to_stab_feed and run_stab_to_dist.)
+module cable_nest() {
+    color("seagreen", 0.08)
+        translate([supply_zone_x + enc_t + 5, enc_t + 5, slack_z_back])
+            cube([supply_zone_w - 2*enc_t - 10,
+                  cutout_h - 2*enc_t - 10,
+                  slack_z_front - slack_z_back - 5]);
+    color("white")
+        translate([supply_zone_x + 8, cutout_h - 12, enc_d - 5])
+            linear_extrude(0.5)
+                text("nest (back-Z)", size = 14, valign = "top");
+}
+
+// ====== Stabilizer (in cutout) ======
 module stabilizer_unit() {
     translate([stab_x, stab_y, 0])
         labeled_box(stabilizer, "STABILIZER", "darkolivegreen");
-    // Port indicators on right side - input (high Z, yellow) and output (low Z, cyan)
     color("yellow")
         translate([stab_x + stabilizer[0], stab_ports_y, stab_in_z])
             rotate([0, 90, 0]) cylinder(h = 30, d = 22, $fn = 16);
@@ -395,15 +848,19 @@ module stabilizer_unit() {
             rotate([0, 90, 0]) cylinder(h = 30, d = 22, $fn = 16);
 }
 
-// ====== Mains conduit ======
+// ====== Mains conduit (descends INTO the ground; emerges at floor level) ======
+supply_conduit_depth = 200;   // how far the conduit runs below the floor
 module supply_conduit() {
     color("orange")
-        translate([supply_x, 0, supply_dia / 2])
-            rotate([-90, 0, 0])
-                cylinder(h = sup_y + 30, d = supply_dia, $fn = 32);
-    color("black") translate([supply_x, 0, 0])
+        translate([supply_x + 30, 0, supply_dia / 2])
+            rotate([90, 0, 0])
+                cylinder(h = supply_conduit_depth, d = supply_dia, $fn = 32);
+    color("black") translate([supply_x + 30, 0, 0])
         cylinder(h = 1, d = supply_dia + 10, $fn = 32);
 }
+
+// Top of supply conduit (cable emerges here)
+supply_conduit_top = [supply_x + 30, 0, supply_dia / 2];
 
 // ====== Window-top conduit row ======
 module conduit_row() {
@@ -417,148 +874,198 @@ module conduit_row() {
 // CABLE RUNS
 // =========================================================================
 
-// FRONT-layer feed: Supply busbar tap -> Stabilizer input.
-// Today bypasses the provisional MCCB; route runs through the left trunk in the
-// Supply Module (x < mccb_x = 1758), never behind the MCCB volume.
-// Busbar tap -> down to Supply left trunk -> RIGHT through nest partition
-// gland -> the nest holds the service slack -> exits enclosure left wall to
-// the stabilizer. Never behind a panel.
-module run_busbar_to_stab() {
-    p_tap        = [busbar_x + 20, busbar_y + busbar_h / 2, busbar_z + busbar_t + 5];
-    p_above      = [busbar_x + 20, sup_y + sup_h - 30, z_front];
-    p_supply_trunk_x = mccb_x - 20;
-    p_supply_y200    = [p_supply_trunk_x, stab_ports_y, z_front];
-    p_nest_right     = [nest_partition_x + nest_partition_t + 3, stab_ports_y, z_front];
-    cable([p_tap,
-           p_above,
-           [p_supply_trunk_x, sup_y + sup_h - 30, z_front],
-           p_supply_y200,
-           p_nest_right], dia = 18, col = "blue");
-    // (the nest itself draws the slack loop and the segment exiting at enc_x)
-    p_stab = [stab_x + stabilizer[0] + 3, stab_ports_y, stab_in_z];
-    cable([[enc_x - 3, stab_ports_y, z_front], p_stab], dia = 18, col = "blue");
+// Conduit top -> Supply MCCB Bus lower row of holes (4-core 4mm cable,
+// splay only at the bus end). p2 = mean of lower-row hole positions.
+module run_conduit_to_smb_lower() {
+    p2 = [smb_pos[0] + (bus2_total_w - bus2_bar_w)/2 + bus2_bar_w/2,
+          smb_pos[1] + bus2_hole_y_lo,
+          smb_pos[2] + bus2_ins_t + bus2_bar_t];
+    cable(supply_conduit_top, [0,  1, 0],
+          p2,                 [0, -1, 0],
+          cores=4, d=4,
+          spread2=[bus2_pole_pitch, 0, 0]);
 }
 
-// MID-layer return: Stabilizer output -> Output MCCB (bottom) -> central busbar
-// Routes via the left-side Supply trunk (x < mccb_x), then OVER the MCCB top,
-// then up the left perimeter into the Output MCCB. Never behind MCCB.
-// Stab side -> enclosure left wall -> the nest holds the slack -> exits the
-// nest TOP -> rises through the left perimeter trunk past Distribution Module
-// equipment -> into the Output MCCB bottom.
+// Supply MCCB output -> Stabilizer input, in three sections:
+//   1) From the four MCCB output bolts, rise and tuck back into the
+//      cable nest (behind the SMB back sheet).
+//   2) Run sideways inside the nest, all the way to the right wall, to
+//      build in slack.
+//   3) Come back out of the nest, drop down, and into the stabilizer
+//      input port on the right face of the stabilizer.
+module run_smb_to_stab() {
+    // MCCB output bolt row, global center, on the front (+Z) face.
+    mccb_out_y = (bus2_hole_y_hi - mccb2_y_in) + mccb2_y_out;
+    mccb_out_p = [smb_pos[0] + mccb2_w/2,
+                  smb_pos[1] + mccb_out_y,
+                  smb_pos[2] + bus2_ins_t + bus2_bar_t];
+
+    // Nest depth (z) -- between back sheet and wall.
+    nest_z         = (smb_pos[2] - smb_back_sheet_t) / 2;
+    // Bottom edge of the back sheet (in Y).
+    backplate_y0   = smb_pos[1] - smb_back_sheet_margin;
+    // Left-side exit X inside the backplate area.
+    left_exit_x    = smb_zone_x;
+    // Right edge of the enclosure, and midway-Y between the backplate
+    // bottom and the floor (y = 0).
+    right_edge_x   = enc_x + enc_w;
+    midway_y       = backplate_y0 / 2;
+
+    // Section 1: MCCB output (splayed) -> left and all the way down to the
+    // backplate bottom edge, exiting straight down.
+    s1_end    = [left_exit_x,  backplate_y0, mccb_out_p[2]];
+    s2_end    = [right_edge_x, midway_y,     50];
+    stab_in_p = [stab_x + stabilizer[0], stab_ports_y, stab_in_z];
+
+    cable_run([
+        [mccb_out_p, [0,  1, 0]],   // out of MCCB lugs, going up
+        [s1_end,     [0,  1, 0]],   // exit backplate bottom, going down
+        [s2_end,     [0,  1, 0]],   // bottom-right, going down
+        
+        [stab_in_p,  [1,  0, 0]],   // into stabilizer from +X
+    ], cores=4, d=4,
+       spread1=[mccb2_pitch, 0, 0]);
+}
+
+// Mains conduit -> Bus BOTTOM bolts (4 conductors, RBYN, individually colored)
+module run_mains_to_bus() {
+    for (i = [0 : 3]) {
+        p_top  = [supply_x + 30, bolt_low_y - 80, supply_dia / 2 + 15];
+        p_bolt = [bus_cx(i), bolt_low_y, bus_bar_z + bus_bar_t + bus_bolt_len];
+        polyline_cable([p_top,
+               [p_top[0], bolt_low_y - 60, p_bolt[2]],
+               [p_bolt[0], bolt_low_y - 60, p_bolt[2]],
+               p_bolt], dia = 12, col = bus_colors[i]);
+    }
+}
+
+// Bus TOP bolts -> MCCB input terminals (short vertical jumpers, RBYN)
+module run_bus_top_to_mccb() {
+    for (i = [0 : 3]) {
+        p_bolt = [bus_cx(i), bolt_top_y, bus_bar_z + bus_bar_t + bus_bolt_len];
+        p_mccb_in = [bus_cx(i), mccb_in_y - 5, z_front - prov_mccb[2] / 2];
+        polyline_cable([p_bolt,
+               [p_bolt[0], bolt_top_y + 20, p_bolt[2]],
+               [p_bolt[0], mccb_in_y - 20, p_mccb_in[2]],
+               p_mccb_in], dia = 12, col = bus_colors[i]);
+    }
+}
+
+// AC DB drop link cables: from AC DB bottom (4 outputs) DOWN to bus MIDDLE
+// bolts. Length ~380mm - drawn as cables (not solid copper) at this distance.
+module acdb_drop_link() {
+    z_acdb = z_front - dbox_int[2] / 2;
+    for (i = [0 : 3]) {
+        x_top  = acdb_x + 30 + i * ((dbox_int[0] - 60) / 3);
+        y_top  = acdb_y;
+        p_bolt = [bus_cx(i), bolt_mid_y, bus_bar_z + bus_bar_t + bus_bolt_len];
+        polyline_cable([
+            [x_top, y_top - 5, z_acdb],
+            [x_top, y_top - 25, p_bolt[2]],
+            [p_bolt[0], y_top - 25, p_bolt[2]],
+            [p_bolt[0], bolt_mid_y + 30, p_bolt[2]],
+            p_bolt
+        ], dia = 12, col = bus_colors[i]);
+    }
+}
+
+// MCCB OUTPUT -> Stab INPUT (4 conductors, RBYN).
+// Path: MCCB output (top of MCCB) -> LEFT along front -> tuck BACK into the
+// back-Z slack volume -> anchor at LEFT edge -> U-turn drape DOWN through
+// back-Z -> forward to stab input port. The down-leg of the U pays out
+// when the stab is wheeled forward for maintenance.
+module run_mccb_to_stab_feed() {
+    feed_z_back = slack_z_back + 40;
+    anchor_x    = supply_zone_x + 18;
+    for (i = [0 : 3]) {
+        p_out  = [bus_cx(i), mccb_out_y + 5, z_front - prov_mccb[2] / 2];
+        p_stab = [supply_zone_x - 3, stab_ports_y - 30 + i * 12, stab_in_z];
+        polyline_cable([
+            p_out,
+            [p_out[0],   mccb_out_y + 25, p_out[2]],          // up and out of MCCB
+            [anchor_x,   mccb_out_y + 25, p_out[2]],           // LEFT across front
+            [anchor_x,   mccb_out_y + 25, feed_z_back],        // tuck into back-Z
+            [anchor_x,   stab_ports_y + 30, feed_z_back],      // anchor at left, drape DOWN
+            [anchor_x,   stab_ports_y, feed_z_back],
+            [supply_zone_x + 5, stab_ports_y, stab_in_z - 20], // out forward
+            p_stab
+        ], dia = 14, col = bus_colors[i]);
+    }
+}
+
+// STAB OUTPUT -> Distribution Output MCCB (4 conductors, RBYN).
+// Path: stab output -> into back-Z behind supply panel -> U-turn anchored
+// at RIGHT end of supply zone -> back LEFT -> UP along left edge in back-Z
+// -> out top of supply zone -> LEFT along upper section into Output MCCB.
 module run_stab_to_dist() {
-    p_stab     = [stab_x + stabilizer[0] + 3, stab_ports_y, stab_out_z];
-    cable([p_stab, [enc_x - 3, stab_ports_y, z_mid]], dia = 18, col = "navy");
-    // (slack inside the nest is drawn by cable_nest())
-    // From nest top to Output MCCB via the left perimeter trunk
-    perim_x    = nest_partition_x - 25;
-    p_mccb_in  = [dist_mccb_x + dist_mccb[0] / 2, dist_mccb_y - 5, z_mid];
-    cable([[perim_x, nest_inner_y + nest_inner_h - 5, z_mid],
-           [perim_x, sup_y + sup_h + 15,              z_mid],   // above Supply shelf
-           [perim_x, dist_mccb_y - 25,                z_mid],
-           [p_mccb_in[0], dist_mccb_y - 25,           z_mid],
-           p_mccb_in], dia = 18, col = "navy");
-    // Output MCCB top -> central busbar via a SIDE drop-link path: cable exits
-    // MCCB top at the front layer, routes around the LEFT side of the MCCB
-    // (clear of any panel), drops in Z to the back layer in open space, then
-    // connects up to the busbar bottom. Never behind the MCCB body.
-    p_mccb_out = [dist_mccb_x + dist_mccb[0] / 2,
-                  dist_mccb_y + dist_mccb[1] + 5, z_front - dist_mccb[2] / 2];
-    side_x     = dist_mccb_x - 25;
-    p_bb_in    = [dist_bb_x + dist_bb_w / 2, dist_bb_y + 5, z_back];
-    cable([p_mccb_out,
-           [p_mccb_out[0], dist_mccb_y + dist_mccb[1] + 20, z_front - dist_mccb[2] / 2],
-           [side_x,        dist_mccb_y + dist_mccb[1] + 20, z_front - dist_mccb[2] / 2],
-           [side_x,        dist_mccb_y + dist_mccb[1] + 20, z_back],
-           [side_x,        dist_bb_y - 10, z_back],
-           p_bb_in], dia = 16, col = "navy");
+    return_z_back = slack_z_back + 80;
+    right_anchor  = supply_zone_x + supply_zone_w - 25;
+    left_riser_x  = supply_zone_x + 22;
+    for (i = [0 : 3]) {
+        p_stab    = [supply_zone_x - 3, stab_ports_y - 30 + i * 12, stab_out_z];
+        p_mccb_in = [dist_mccb_x + dist_mccb[0]/2 - 25 + i * 16,
+                     dist_mccb_y - 5, z_mid];
+        polyline_cable([
+            p_stab,
+            [supply_zone_x + 8, stab_ports_y - 30 + i * 12, stab_out_z],
+            [supply_zone_x + 25, stab_ports_y, return_z_back],   // dip back
+            [right_anchor, stab_ports_y, return_z_back],         // RIGHT to anchor
+            [right_anchor, stab_ports_y + 60, return_z_back],    // U-turn around anchor
+            [left_riser_x + 100, stab_ports_y + 60, return_z_back], // back LEFT
+            [left_riser_x, stab_ports_y + 90, return_z_back],
+            [left_riser_x, cutout_h - 30, return_z_back],        // UP along left edge
+            [left_riser_x, cutout_h + 30, z_mid],                // out top, into upper
+            [p_mccb_in[0], cutout_h + 30, z_mid],                // LEFT toward Output MCCB
+            [p_mccb_in[0], dist_mccb_y - 25, z_mid],
+            p_mccb_in
+        ], dia = 14, col = bus_colors[i]);
+    }
 }
 
-// Solar feed: left-wall duct -> across top of wall -> into enclosure top-right
-//             -> drop into Solar IN DB top
+// Solar feed: enters from left-wall duct, runs along top of wall, drops
+// into the Solar IN DB internals from above.
 module run_solar_in() {
-    p_duct  = [0, wall_h - 50, 60];
+    p_duct   = [0, wall_h - 50, 60];
     p_corner = [enc_x + enc_w - 60, wall_h - 50, 60];
-    p_top   = [sdb_x + dbox[0] * 0.3, enc_y + enc_h - 25, 60];
-    p_sdb   = [sdb_x + dbox[0] * 0.3, sdb_y + dbox[1] + 2, z_front - dbox[2] / 2];
-    cable([p_duct, p_corner, p_top, p_sdb], dia = 14, col = "red");
+    p_top    = [sdb_x + dbox_int[0] / 2, enc_h - 25, 60];
+    p_sdb    = [sdb_x + dbox_int[0] / 2, sdb_y + dbox_int[1] + 2,
+                z_front - dbox_int[2] / 2];
+    polyline_cable([p_duct, p_corner, p_top, p_sdb], dia = 14, col = "red");
 }
 
-// Solar IN DB bottom -> Inverter bottom-left.
-// Drops via the LEFT trunk in the right column (the dedicated lane next to the
-// partition) - never inside the Inverter body.
+// Solar IN DB -> Inverter (DC) via right-column trunk
 module run_sdb_to_inv() {
-    z = z_front - dbox[2] / 2;
-    p_out = [sdb_x + dbox[0] * 0.7, sdb_y - 2, z];
-    p_in  = [inv_x + 40, inv_y - 2, z_front - inverter[2] / 2];
-    trunk_x = right_x + sol_col_left_trunk_w / 2;     // inside left trunk
-    cable([p_out,
+    z = z_front - dbox_int[2] / 2;
+    p_out = [sdb_x + dbox_int[0] * 0.5, sdb_y - 2, z];
+    p_in  = [inv_x + 50, inv_y - 2, z_front - inverter[2] / 2];
+    trunk_x = sol_x + 25;
+    polyline_cable([p_out,
            [p_out[0], sdb_y - 25, z],
            [trunk_x,  sdb_y - 25, z],
-           [trunk_x,  inv_y - 25, z],   // descends past inverter on its LEFT
+           [trunk_x,  inv_y - 25, z],
            [p_in[0],  inv_y - 25, z],
            p_in], dia = 12, col = "crimson");
 }
 
-// Inverter bottom-right -> AC DB top
+// Inverter AC out -> AC DB internals
 module run_inv_to_acdb() {
-    p_inv = [inv_x + inverter[0] - 40, inv_y - 2, z_front - inverter[2] / 2];
-    p_acdb = [acdb_x + dbox[0] * 0.3, acdb_y + dbox[1] + 2, z_front - dbox[2] / 2];
-    cable([p_inv,
-           [p_inv[0], acdb_y + dbox[1] + 25, z_front - inverter[2] / 2],
-           [p_acdb[0], acdb_y + dbox[1] + 25, z_front - dbox[2] / 2],
+    p_inv  = [inv_x + inverter[0] - 50, inv_y - 2, z_front - inverter[2] / 2];
+    p_acdb = [acdb_x + dbox_int[0] * 0.5, acdb_y + dbox_int[1] + 2,
+              z_front - dbox_int[2] / 2];
+    polyline_cable([p_inv,
+           [p_inv[0],  acdb_y + dbox_int[1] + 25, z_front - inverter[2] / 2],
+           [p_acdb[0], acdb_y + dbox_int[1] + 25, z_front - dbox_int[2] / 2],
            p_acdb], dia = 12, col = "purple");
 }
 
-// AC DB drop links: 4 solid copper bars from the AC DB's internal MCB load side
-// straight down through a shelf cutout onto the 4P supply busbar. Not a cable
-// run - the AC DB bolts directly onto the busbar via these drop links.
-// AC DB drop links: 4 solid copper bars rising from the supply busbar up
-// through a dedicated shelf cutout to the AC DB's internal MCB load terminals.
-// Mechanical busbar tap (part of AC DB mounting) - not a cable.
-module acdb_drop_link() {
-    link_w   = 18;
-    link_t   = 8;
-    z_acdb   = z_front - dbox[2] / 2;     // mid-depth of AC DB body
-    for (i = [0 : 3]) {
-        x_link = acdb_x + 30 + i * ((dbox[0] - 60) / 3) - link_w / 2;
-        y_top  = acdb_y;
-        y_bot  = busbar_y + i * (busbar_h / 4) + busbar_h / 8;
-        color("peru")
-            hull() {
-                translate([x_link, y_bot,        busbar_z + busbar_t / 2])
-                    cube([link_w, link_t, link_t]);
-                translate([x_link, y_top - link_t, z_acdb - link_t / 2])
-                    cube([link_w, link_t, link_t]);
-            }
-    }
-}
-
-// Visible cable wireways: light translucent boxes marking the provisioned
-// trunking lanes so no cable has to route behind a panel.
-module wireways() {
-    // Left-side signal trunk: Supply top -> Monitoring, hugging left interior wall
-    color("palegreen", 0.18)
-        translate([enc_x + enc_t + 5, sup_y + sup_h - 50, ct_clamp_z - 15])
-            cube([35, mon_y - sup_y - sup_h + 50, 35]);
-    // Solar column LEFT trunk: Distribution right exit -> top of enclosure
-    color("khaki", 0.22)
-        translate([partition_x + partition_t + 5, dist_y + 100, 170])
-            cube([sol_col_left_trunk_w,
-                  enc_y + enc_h - dist_y - 110, 80]);
-    // Wireway shelf above MCCB in Supply Module (front-to-back access for pigtails)
-    color("palegreen", 0.18)
-        translate([sup_inner_x, sup_y + sup_h - 50, ct_clamp_z - 15])
-            cube([sup_inner_w, 45, 35]);
-}
-
-// Distribution LEFT MCB outputs (10 ways) -> exit left of enclosure -> conduits row
+// Distribution LEFT bank MCB outputs -> conduits above window
 module run_dist_left_to_conduits() {
     for (i = [0 : mcb_per_side - 1]) {
         p_mcb = [mcb_left_x, mcbs_y + i * mcb_unit[1] + mcb_unit[1] / 2,
                  enc_t + 20 + mcb_unit[2] / 2];
         ci = i % conduit_count;
         cx = conduit_x0 + ci * conduit_pitch;
-        cable([p_mcb,
+        polyline_cable([p_mcb,
                [enc_x - 5, p_mcb[1], 110],
                [enc_x - 5, conduit_row_y, 110],
                [cx, conduit_row_y, 110],
@@ -566,53 +1073,22 @@ module run_dist_left_to_conduits() {
     }
 }
 
-// Distribution RIGHT MCB outputs (10 ways) -> up through solar trunk -> top of
-//  enclosure -> left across top of wall -> exit into left-wall duct
+// Distribution RIGHT bank MCB outputs -> through solar column left trunk
+// -> exit top of enclosure -> left wall duct
 module run_dist_right_to_duct() {
-    // Riser sits INSIDE the provisioned solar-column left trunk (to the LEFT of
-    // every solar component; never behind a panel).
-    riser_x   = partition_x + partition_t + sol_col_left_trunk_w / 2;
-    top_lane  = enc_y + enc_h - 25;
-    duct_lane = wall_h - 80;
+    riser_x     = partition_x + partition_t + 25;
+    top_lane_y  = enc_h - 25;
+    duct_lane_y = wall_h - 80;
     for (i = [0 : mcb_per_side - 1]) {
         p_mcb = [mcb_right_x + mcb_unit[0],
                  mcbs_y + i * mcb_unit[1] + mcb_unit[1] / 2,
                  enc_t + 20 + mcb_unit[2] / 2];
-        cable([p_mcb,
-               // through partition gland plate into solar-column left trunk
+        polyline_cable([p_mcb,
                [riser_x, p_mcb[1], 210],
-               // rise to top of enclosure inside the trunk
-               [riser_x, top_lane, 210],
-               // exit out the top, run left along top-of-wall lane to duct
-               [enc_x + 30, top_lane, 210],
-               [enc_x + 30, duct_lane, 210],
-               [0,          duct_lane, 210]], dia = 6, col = "saddlebrown");
-    }
-}
-
-// CT pigtails: from CTs at supply busbar UP through the left-side signal trunk,
-// past the Distribution Module, into the M30s at the top of the enclosure.
-// Routed at ct_clamp_z (mid layer), in a dedicated low-voltage signal lane
-// hugging the left interior wall so they stay separate from heavy conductors.
-module run_ct_pigtails() {
-    // Signal lane hugs the left interior wall (outside MCCB X range), rising
-    // from the wireway shelf above the MCCB up to the Monitoring compartment.
-    signal_lane_x = enc_x + enc_t + 18;     // left of MCCB (x=mccb_x=1718)
-    shelf_y       = sup_y + sup_h - 30;     // wireway shelf above MCCB top
-    for (i = [0 : 3]) {
-        p_ct  = [ct_section_x,
-                 busbar_y + i * (busbar_h / 4) + busbar_h / 8,
-                 ct_clamp_z];
-        which_m30 = (i < 2) ? 0 : 1;
-        p_m30 = [m30_x0 + which_m30 * m30_pitch + m30[0] / 2,
-                 m30_y + m30[1] * 0.4,
-                 enc_t + 15 + m30[2] - 5];
-        cable([p_ct,
-               [p_ct[0],       shelf_y,    ct_clamp_z],   // up over MCCB top
-               [signal_lane_x, shelf_y,    ct_clamp_z],   // left across shelf
-               [signal_lane_x, mon_y - 10, ct_clamp_z],   // up perimeter
-               [p_m30[0],      mon_y - 10, ct_clamp_z],
-               p_m30], dia = 3, col = "limegreen");
+               [riser_x, top_lane_y, 210],
+               [enc_x + 30, top_lane_y, 210],
+               [enc_x + 30, duct_lane_y, 210],
+               [0,          duct_lane_y, 210]], dia = 6, col = "saddlebrown");
     }
 }
 
@@ -620,143 +1096,142 @@ module run_ct_pigtails() {
 // DIMENSION ANNOTATIONS (pattern adapted from cabinetry/common.scad)
 // =========================================================================
 show_dimensions = true;
-dim_color       = "orange";
-dim_text_color  = "red";
-dim_line_d      = 3;
-dim_tick_d      = 4;
-dim_text_h      = 50;       // typical text height
+dim_z           = enc_d + 25;
+dim_text_h      = 50;
 dim_text_thk    = 2;
-dim_z           = 320;      // draw in front of all components
 
-// Horizontal dimension between x1 and x2, drawn at vertical line y_anchor,
-// dimension line offset by `off` in Y (positive=above, negative=below).
 module dim_h(x1, x2, y_anchor, label, off=-100, text_size=undef) {
     ts = text_size == undef ? dim_text_h : text_size;
     yd = y_anchor + off;
-    color(dim_color, 0.7) {
+    color("orange", 0.7) {
         hull() {
-            translate([x1, yd, dim_z]) sphere(d=dim_line_d, $fn=12);
-            translate([x2, yd, dim_z]) sphere(d=dim_line_d, $fn=12);
+            translate([x1, yd, dim_z]) sphere(d=3, $fn=12);
+            translate([x2, yd, dim_z]) sphere(d=3, $fn=12);
         }
         hull() {
-            translate([x1, y_anchor, dim_z]) sphere(d=dim_tick_d, $fn=12);
-            translate([x1, yd,       dim_z]) sphere(d=dim_tick_d, $fn=12);
+            translate([x1, y_anchor, dim_z]) sphere(d=4, $fn=12);
+            translate([x1, yd,       dim_z]) sphere(d=4, $fn=12);
         }
         hull() {
-            translate([x2, y_anchor, dim_z]) sphere(d=dim_tick_d, $fn=12);
-            translate([x2, yd,       dim_z]) sphere(d=dim_tick_d, $fn=12);
+            translate([x2, y_anchor, dim_z]) sphere(d=4, $fn=12);
+            translate([x2, yd,       dim_z]) sphere(d=4, $fn=12);
         }
     }
-    color(dim_text_color)
+    color("red")
         translate([(x1 + x2) / 2,
-                   yd + (off >= 0 ? ts*0.7 : -ts*0.7),
-                   dim_z])
+                   yd + (off >= 0 ? ts*0.7 : -ts*0.7), dim_z])
             linear_extrude(dim_text_thk)
                 text(label, size=ts, halign="center", valign="center");
 }
 
-// Vertical dimension between y1 and y2, drawn at horizontal line x_anchor,
-// dimension line offset by `off` in X (positive=right, negative=left).
 module dim_v(y1, y2, x_anchor, label, off=-100, text_size=undef) {
     ts = text_size == undef ? dim_text_h : text_size;
     xd = x_anchor + off;
-    color(dim_color, 0.7) {
+    color("orange", 0.7) {
         hull() {
-            translate([xd, y1, dim_z]) sphere(d=dim_line_d, $fn=12);
-            translate([xd, y2, dim_z]) sphere(d=dim_line_d, $fn=12);
+            translate([xd, y1, dim_z]) sphere(d=3, $fn=12);
+            translate([xd, y2, dim_z]) sphere(d=3, $fn=12);
         }
         hull() {
-            translate([x_anchor, y1, dim_z]) sphere(d=dim_tick_d, $fn=12);
-            translate([xd,       y1, dim_z]) sphere(d=dim_tick_d, $fn=12);
+            translate([x_anchor, y1, dim_z]) sphere(d=4, $fn=12);
+            translate([xd,       y1, dim_z]) sphere(d=4, $fn=12);
         }
         hull() {
-            translate([x_anchor, y2, dim_z]) sphere(d=dim_tick_d, $fn=12);
-            translate([xd,       y2, dim_z]) sphere(d=dim_tick_d, $fn=12);
+            translate([x_anchor, y2, dim_z]) sphere(d=4, $fn=12);
+            translate([xd,       y2, dim_z]) sphere(d=4, $fn=12);
         }
     }
-    color(dim_text_color)
+    color("red")
         translate([xd + (off >= 0 ? ts*0.7 : -ts*0.7),
-                   (y1 + y2) / 2,
-                   dim_z])
+                   (y1 + y2) / 2, dim_z])
             rotate([0, 0, 90])
                 linear_extrude(dim_text_thk)
                     text(label, size=ts, halign="center", valign="center");
 }
 
 module dimensions() {
-    // ---- Enclosure overall (outer W & H) ----
-    dim_h(enc_x, enc_x + enc_w,
-          enc_y + enc_h, str("ENC ", enc_w), off=80, text_size=60);
-    dim_v(enc_y, enc_y + enc_h,
-          enc_x + enc_w, str(enc_h), off=80, text_size=60);
+    // Overall enclosure W & H
+    dim_h(enc_x, enc_x + enc_w, enc_y + enc_h, str("ENC ", enc_w),
+          off=90, text_size=60);
+    dim_v(enc_y, enc_y + enc_h, enc_x + enc_w, str(enc_h),
+          off=90, text_size=60);
 
-    // ---- Internal vertical split (left half / right half widths) ----
-    dim_h(enc_x, partition_x,
-          enc_y, str(partition_x - enc_x), off=-90);
-    dim_h(partition_x + partition_t, enc_x + enc_w,
-          enc_y, str(enc_x + enc_w - partition_x - partition_t), off=-90);
+    // Lower-section X split (stab cutout vs supply zone widths)
+    dim_h(enc_x, supply_x, enc_y, str("Cutout ", cutout_w),
+          off=-110, text_size=38);
+    dim_h(supply_x, enc_x + enc_w, enc_y, str("Sup ", supply_zone_w),
+          off=-110, text_size=38);
 
-    // ---- Cable Nest width (inside Supply band) ----
-    dim_h(enc_x, nest_partition_x,
-          sup_y + sup_h, str("Nest ", nest_partition_x - enc_x), off=35, text_size=35);
-    dim_h(nest_partition_x + nest_partition_t, partition_x,
-          sup_y + sup_h, str(partition_x - nest_partition_x - nest_partition_t),
-          off=35, text_size=35);
+    // Upper-section X split (Distribution vs Solar widths)
+    dim_h(enc_x, partition_x, mon_y, str("Dist ", dist_w),
+          off=-40, text_size=38);
+    dim_h(partition_x + partition_t, enc_x + enc_w, mon_y,
+          str("Sol ", enc_x + enc_w - partition_x - partition_t),
+          off=-40, text_size=38);
 
-    // ---- Compartment band heights (on the right edge of the enclosure) ----
+    // Band heights (right side, stepped offsets so they don't overlap)
     bands_x = enc_x + enc_w;
-    dim_v(sup_y,  sup_y + sup_h,   bands_x, str("Sup ",  sup_h),  off=200, text_size=40);
-    dim_v(dist_y, dist_y + dist_h, bands_x, str("Dist ", dist_h), off=200, text_size=40);
-    dim_v(mon_y,  mon_y + mon_h,   bands_x, str("Mon ",  mon_h),  off=200, text_size=40);
+    dim_v(enc_y, cutout_h, bands_x, str("Cutout ", cutout_h),
+          off=210, text_size=38);
+    dim_v(upper_y, mon_y, bands_x, str("Upper ", mon_y - upper_y),
+          off=210, text_size=38);
+    dim_v(mon_y, mon_y + mon_h, bands_x, str("Mon ", mon_h),
+          off=210, text_size=38);
 }
 
 // =========================================================================
 // RENDER
 // =========================================================================
-wall_panel();
-grid();
-window_cutout();
+    // Supply MCCB Bus (placement = smb_pos)
+    translate(smb_pos) supply_mccb_bus();
+    smb_back_sheet();
+    run_conduit_to_smb_lower();
+    run_smb_to_stab();
+    wall_panel();
+    grid();
+    window_cutout();
 
-enclosure_shell();
-cable_nest();
-supply_module();
-solar_chain();
-distribution_module();
-monitoring_module();
+    enclosure_shell();
+    solar_chain();
+    distribution_module();
+    monitoring_module();
+    cable_guide();
+    cable_nest();
 
-stabilizer_unit();
-supply_conduit();
-conduit_row();
+    stabilizer_unit();
+    supply_conduit();
+    conduit_row();
 
-wireways();
-acdb_drop_link();
+    acdb_drop_link();
+    run_mains_to_bus();
+    run_bus_top_to_mccb();
+    run_mccb_to_stab_feed();
+    run_stab_to_dist();
+    run_solar_in();
+    run_sdb_to_inv();
+    run_inv_to_acdb();
+    run_dist_left_to_conduits();
+    run_dist_right_to_duct();
 
-run_busbar_to_stab();
-run_stab_to_dist();
-run_solar_in();
-run_sdb_to_inv();
-run_inv_to_acdb();
-run_dist_left_to_conduits();
-run_dist_right_to_duct();
-run_ct_pigtails();
+    enclosure_doors();
 
-enclosure_doors();
-
-if (show_dimensions) dimensions();
+    if (show_dimensions) dimensions();
 
 // =========================================================================
 // ECHO SUMMARY
 // =========================================================================
 echo(str("Enclosure   : ", [enc_x, enc_y], " size ", [enc_w, enc_h, enc_d]));
-echo(str("  Supply band   y=", sup_y, "..", sup_y + sup_h));
-echo(str("    Cable Nest    x=", enc_x, "..", nest_partition_x,
-         "  (", nest_inner_w, "mm wide for stab cable slack)"));
-echo(str("    Supply mod    x=", nest_partition_x + nest_partition_t, "..", enc_x + enc_w));
-echo(str("  Monitoring    y=", mon_y, "..", mon_y + mon_h));
-echo(str("  Distribution  y=", dist_y, "..", dist_y + dist_h));
-echo(str("  Solar chain   y=", sol_y, "..", sol_y + sol_h));
-echo(str("Solar IN DB  : ", [sdb_x, sdb_y], " top y=", sdb_y + dbox[1]));
-echo(str("Inverter     : ", [inv_x, inv_y], " top y=", inv_y + inverter[1]));
-echo(str("AC DB        : ", [acdb_x, acdb_y]));
-echo(str("Stabilizer   : ", [stab_x, stab_y], " right edge x=", stab_x + stabilizer[0]));
-echo(str("Mains conduit @ x=", supply_x));
+echo(str("  Stab cutout  x=", enc_x,         "..", supply_x,
+         " y=0..", cutout_h));
+echo(str("  Supply zone  x=", supply_x,      "..", enc_x + enc_w,
+         " y=0..", cutout_h));
+echo(str("  Cable nest   (back-Z slack in Supply zone, z=",
+         slack_z_back, "..", slack_z_front, ")"));
+echo(str("  Distribution x=", dist_x,        "..", partition_x,
+         " y=", dist_y, "..", dist_y + dist_h));
+echo(str("  Solar chain  x=", sol_x,         "..", enc_x + enc_w,
+         " y=", upper_y, "..", sdb_y + dbox_int[1]));
+echo(str("  Monitoring   y=", mon_y,         "..", mon_y + mon_h,
+         " (full width)"));
+echo(str("Mains conduit @ x=", supply_x + 30));
+echo(str("Stab ports at y=", stab_ports_y));

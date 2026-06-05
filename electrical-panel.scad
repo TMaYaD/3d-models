@@ -85,9 +85,11 @@ enc_t = 8;
 // Lower section is split at supply_x (mains conduit anchor):
 //   stab cutout on the left, supply zone (SMB) on the right.
 //   Supply zone is exactly stabilizer-tall (= cutout_h).
+// Same clearance above the stabilizer as on its side (cutout_w - stab width).
+stab_clearance = (supply_x - enc_x) - stabilizer[0];
 cutout_x  = enc_x;
-cutout_w  = supply_x - enc_x;               // = 650
-cutout_h  = stabilizer[1];                  // = 970, supply enc matches stab height
+cutout_w  = supply_x - enc_x;                       // = 650
+cutout_h  = stabilizer[1] + stab_clearance;         // = 1000, supply matches
 
 supply_zone_x = supply_x;
 supply_zone_w = enc_x + enc_w - supply_x;   // = 300

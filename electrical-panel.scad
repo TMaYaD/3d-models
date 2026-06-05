@@ -104,12 +104,26 @@ slack_z_front = 150;             // boundary: front layer starts here (MCCB back
 partition_x = supply_x;              // aligned with stab cutout's right edge
 partition_t = 10;
 
+// 4-pole MCCB: 127 x 194 x 80, terminal holes 8.5 dia at 35mm pitch,
+// 11mm from bottom end (input) and 11mm from top end (output).
+mccb2_w         = 127;
+mccb2_h         = 194;
+mccb2_d         = 80;
+mccb2_hole_d    = 8.5;
+mccb2_pitch     = 35;
+mccb2_holes_n   = 4;
+mccb2_first_x   = (mccb2_w - (mccb2_holes_n - 1) * mccb2_pitch) / 2;   // 11
+mccb2_y_in      = 11;
+mccb2_y_out     = mccb2_h - 11;                                       // 183
+
 // ====== Distribution module (upper-left) ======
 dist_x = enc_x;
 dist_w = partition_x - dist_x;       // 620
 dist_y = upper_y;
 
-dist_mccb       = mccb;              // Output MCCB at bottom of central busbar
+// Output MCCB at bottom of central busbar -- same part as the supply MCCB
+// so both render via supply_mccb_v2().
+dist_mccb       = [mccb2_w, mccb2_h, mccb2_d];
 dist_bb_w       = 60;
 dist_bb_x       = dist_x + (dist_w - dist_bb_w) / 2;
 dist_mccb_x     = dist_bb_x + dist_bb_w / 2 - dist_mccb[0] / 2;
@@ -195,18 +209,6 @@ module supply_bus_v2() {
                     text(["R","B","Y","N"][i], size = 10, valign = "bottom");
     }
 }
-
-// 4-pole MCCB: 127 x 194 x 80, terminal holes 8.5 dia at 35mm pitch,
-// 11mm from bottom end (input) and 11mm from top end (output).
-mccb2_w         = 127;
-mccb2_h         = 194;
-mccb2_d         = 80;
-mccb2_hole_d    = 8.5;
-mccb2_pitch     = 35;
-mccb2_holes_n   = 4;
-mccb2_first_x   = (mccb2_w - (mccb2_holes_n - 1) * mccb2_pitch) / 2;   // 11
-mccb2_y_in      = 11;
-mccb2_y_out     = mccb2_h - 11;                                       // 183
 
 module supply_mccb_v2() {
     color("darkorange", 0.85)
@@ -403,139 +405,119 @@ module _arc(dir_in, dir_out, br, r) {
     rotate_extrude(angle=90, $fn=48) translate([br, 0]) circle(r=r, $fn=20);
 }
 
-// 2-arc path: 3 straights + 2 arcs through one intermediate direction.
-module _route3(p1, dir1, dir_mid, dir2, L1, L2, L3, br, r, col) {
-    color(col) union() {
-        _straight(p1, dir1, L1, r);
-        a1s = _vadd(p1, _vmul(L1, dir1));
-        translate(a1s) _arc(dir1, dir_mid, br, r);
-        a1e = _vadd(a1s, _vmul(br, _vadd(dir1, dir_mid)));
-        _straight(a1e, dir_mid, L2, r);
-        a2s = _vadd(a1e, _vmul(L2, dir_mid));
-        translate(a2s) _arc(dir_mid, dir2, br, r);
-        a2e = _vadd(a2s, _vmul(br, _vadd(dir_mid, dir2)));
-        _straight(a2e, dir2, L3, r);
-        translate(_vadd(a2e, _vmul(L3, dir2))) sphere(r=r, $fn=20);
+// ====== Generic minimum-arc axis-aligned router ======
+// Strategy: enumerate axis-aligned direction sequences of increasing length
+// from dir1 to dir2t, with consecutive directions perpendicular. For each
+// sequence, solve for non-negative segment lengths satisfying the per-axis
+// displacement equation at the user's full bend_r. The first feasible
+// sequence wins (minimum arcs). Handles forward, S, U, Z, and overshoot
+// topologies uniformly. Capped at MAX_ARCS to keep enumeration finite.
+
+_WIRE_MAX_ARCS = 6;
+
+function _all_dirs() = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+function _is_perp_d(a, b) = (a[0]*b[0] + a[1]*b[1] + a[2]*b[2]) == 0;
+function _perp_dirs(d)    = [for (e = _all_dirs()) if (_is_perp_d(d, e)) e];
+
+// Sum of (d_i + d_{i+1}) for i = 0..N-1 (arc-displacement coefficients).
+function _arc_sum(seq, i = 0) =
+    (i >= len(seq) - 1) ? [0,0,0] :
+    _vadd(_vadd(seq[i], seq[i+1]), _arc_sum(seq, i+1));
+
+function _first_idx(seq, axis_idx, sign, i = 0) =
+    (i >= len(seq)) ? -1 :
+    (seq[i][axis_idx] == sign) ? i :
+    _first_idx(seq, axis_idx, sign, i+1);
+
+// Per-axis length assignment along the sequence. Each segment is along ONE
+// axis so the three axis equations decouple. We put all residual on the
+// first segment in the required direction; any feasible non-negative
+// assignment is correct. Returns undef if the needed direction is absent.
+function _solve_axis(seq, axis_idx, R) =
+    let(n = len(seq))
+    (abs(R) < 1e-6) ? [for (i = [0:n-1]) 0]
+    : (R > 0) ?
+        let(idx = _first_idx(seq, axis_idx, 1))
+        (idx < 0) ? undef
+                  : [for (i = [0:n-1]) (i == idx) ? R : 0]
+    :
+        let(idx = _first_idx(seq, axis_idx, -1))
+        (idx < 0) ? undef
+                  : [for (i = [0:n-1]) (i == idx) ? -R : 0];
+
+function _solve_seq(seq, delta, br) =
+    let(at = _vmul(br, _arc_sum(seq)))
+    let(R  = _vsub(delta, at))
+    let(Lx = _solve_axis(seq, 0, R[0]))
+    let(Ly = _solve_axis(seq, 1, R[1]))
+    let(Lz = _solve_axis(seq, 2, R[2]))
+    (is_undef(Lx) || is_undef(Ly) || is_undef(Lz)) ? undef
+    : [for (i = [0:len(seq)-1]) Lx[i] + Ly[i] + Lz[i]];
+
+function _gen_seqs(prefix, n, target) =
+    let(L = len(prefix))
+    (L == n) ? (prefix[L-1] == target ? [prefix] : [])
+            : [for (nxt = _perp_dirs(prefix[L-1]))
+                 each _gen_seqs(concat(prefix, [nxt]), n, target)];
+
+function _enum_seqs(N, d1, d2t) =
+    (N == 0) ? (d1 == d2t ? [[d1]] : [])
+            : _gen_seqs([d1], N+1, d2t);
+
+function _first_feasible(seqs, delta, br, i = 0) =
+    (i >= len(seqs)) ? undef :
+    let(L = _solve_seq(seqs[i], delta, br))
+    !is_undef(L) ? [seqs[i], L]
+                 : _first_feasible(seqs, delta, br, i+1);
+
+function _find_path_n(d1, d2t, delta, br, N, max_N) =
+    (N > max_N) ? undef :
+    let(found = _first_feasible(_enum_seqs(N, d1, d2t), delta, br))
+    !is_undef(found) ? found
+                     : _find_path_n(d1, d2t, delta, br, N+1, max_N);
+
+module _render_walk(p, seq, lengths, i, br, r) {
+    if (i < len(seq)) {
+        d = seq[i];
+        L = lengths[i];
+        _straight(p, d, L, r);
+        p_end = _vadd(p, _vmul(L, d));
+        if (i < len(seq) - 1) {
+            d_next = seq[i + 1];
+            translate(p_end) _arc(d, d_next, br, r);
+            p_next = _vadd(p_end, _vmul(br, _vadd(d, d_next)));
+            _render_walk(p_next, seq, lengths, i + 1, br, r);
+        } else {
+            translate(p_end) sphere(r=r, $fn=20);
+        }
     }
 }
 
-// 3-arc path: 4 straights + 3 arcs through two intermediate directions.
-module _route4(p1, dir1, dir_a, dir_b, dir2, L1, L2, L3, L4, br, r, col) {
+module _render_path(p_start, seq, lengths, br, r, col) {
     color(col) union() {
-        _straight(p1, dir1, L1, r);
-        a1s = _vadd(p1, _vmul(L1, dir1));
-        translate(a1s) _arc(dir1, dir_a, br, r);
-        a1e = _vadd(a1s, _vmul(br, _vadd(dir1, dir_a)));
-        _straight(a1e, dir_a, L2, r);
-        a2s = _vadd(a1e, _vmul(L2, dir_a));
-        translate(a2s) _arc(dir_a, dir_b, br, r);
-        a2e = _vadd(a2s, _vmul(br, _vadd(dir_a, dir_b)));
-        _straight(a2e, dir_b, L3, r);
-        a3s = _vadd(a2e, _vmul(L3, dir_b));
-        translate(a3s) _arc(dir_b, dir2, br, r);
-        a3e = _vadd(a3s, _vmul(br, _vadd(dir_b, dir2)));
-        _straight(a3e, dir2, L4, r);
-        translate(_vadd(a3e, _vmul(L4, dir2))) sphere(r=r, $fn=20);
+        translate(p_start) sphere(r=r, $fn=20);
+        _render_walk(p_start, seq, lengths, 0, br, r);
     }
 }
 
 module wire(p1, dir1, p2, dir2, r=2, col="black", bend_r=undef) {
-    // dir1, dir2 are OUTWARD tangents: each points FROM its endpoint INTO the
-    // cable interior. Internally we use travel direction (p1 -> p2), which at
-    // p2 is the negation of dir2.
+    // dir1, dir2 are OUTWARD tangents: each points FROM its endpoint INTO
+    // the cable interior. Internally we use travel direction; at p2 that's
+    // the negation of dir2.
     dir2t = _vmul(-1, dir2);
-    br = is_undef(bend_r) ? 10*r : bend_r;
+    br    = is_undef(bend_r) ? 10*r : bend_r;
     delta = _vsub(p2, p1);
-    dot   = _vdot(dir1, dir2t);
-    same  = (dir1 == dir2t);
-    opp   = (_vadd(dir1, dir2t) == [0,0,0]);
-
-    if (!same && !opp) {
-        // Perpendicular: intermediate goes along the third (orthogonal) axis.
-        third_unsigned = _vabs(_vcross(dir1, dir2t));
-        d_third = _vdot(delta, third_unsigned);
-        dir_mid = _vmul(d_third >= 0 ? 1 : -1, third_unsigned);
-        d1 = _vdot(delta, dir1);
-        d2 = _vdot(delta, dir2t);
-        dm = abs(d_third);
-        L1 = d1 - br; L2 = dm - 2*br; L3 = d2 - br;
-        if (L1 < 0 || L2 < 0 || L3 < 0)
-            echo(str("WARN wire perp: clamped legs L1=", L1, " L2=", L2, " L3=", L3));
-        _route3(p1, dir1, dir_mid, dir2t, max(0,L1), max(0,L2), max(0,L3), br, r, col);
+    path  = _find_path_n(dir1, dir2t, delta, br, 0, _WIRE_MAX_ARCS);
+    if (is_undef(path)) {
+        echo(str("WARN wire: no path within ", _WIRE_MAX_ARCS,
+                 " arcs at bend_r=", br,
+                 " from p1=", p1, " dir1=", dir1,
+                 " to p2=", p2, " dir2=", dir2));
     } else {
-        // same or opp: parallel dirs. Both 3-arc routes leak 2*br into a perp
-        // axis when its delta is zero (arc displacements don't cancel because
-        // L = max(0, ...) clamps the negative inner leg). So when exactly one
-        // perp axis has offset, fall back to a 2-arc route through it.
-        ai = _axis_idx(dir1);
-        a = (ai+1) % 3; b = (ai+2) % 3;
-        da = delta[a]; db = delta[b];
-        d_dir1 = _vdot(delta, dir1);
-        if (abs(da) < 1e-6 && abs(db) < 1e-6) {
-            // Pure axial.
-            if (same) {
-                color(col) {
-                    _straight(p1, dir1, max(0, d_dir1), r);
-                    translate(p2) sphere(r=r, $fn=20);
-                }
-            } else {
-                echo("WARN wire opp: no perp offset, cannot route U-turn");
-            }
-        } else if (abs(da) < 1e-6 || abs(db) < 1e-6) {
-            // Exactly one perp axis carries the offset: 2-arc route.
-            ax_p   = (abs(da) > abs(db)) ? a : b;
-            d_perp = (ax_p == a) ? da : db;
-            sp     = d_perp >= 0 ? 1 : -1;
-            dir_p  = [ax_p==0?sp:0, ax_p==1?sp:0, ax_p==2?sp:0];
-            br_eff = min(br, abs(d_perp) / 2);
-            if (br_eff < br)
-                echo(str("WARN wire: bend_r ", br, " -> ", br_eff,
-                         " (single perp offset |d|=", abs(d_perp), ")"));
-            L_perp = max(0, abs(d_perp) - 2*br_eff);
-            if (same) {
-                // dir1 -> dir_p -> dir1: Δdir1 = L1 + L3 + 2*br_eff
-                L_total = d_dir1 - 2*br_eff;
-                L1 = max(0, L_total/2);
-                L3 = max(0, L_total - L1);
-                if (L_total < 0)
-                    echo(str("WARN wire same-deg: clamped d_dir1=", d_dir1));
-                _route3(p1, dir1, dir_p, dir1, L1, L_perp, L3, br_eff, r, col);
-            } else {
-                // dir1 -> dir_p -> -dir1: Δdir1 = L1 - L3 (arcs cancel)
-                L1 = max(0,  d_dir1);
-                L3 = max(0, -d_dir1);
-                _route3(p1, dir1, dir_p, dir2t, L1, L_perp, L3, br_eff, r, col);
-            }
-        } else {
-            // Both perp axes carry offset: 3-arc route.
-            ax_a = abs(da) >= abs(db) ? a : b;
-            ax_b = a + b - ax_a;
-            sa = (delta[ax_a] >= 0) ? 1 : -1;
-            sb = (delta[ax_b] >= 0) ? 1 : -1;
-            dir_a = [ax_a==0?sa:0, ax_a==1?sa:0, ax_a==2?sa:0];
-            dir_b = [ax_b==0?sb:0, ax_b==1?sb:0, ax_b==2?sb:0];
-            br_eff = min(br, abs(delta[ax_a])/2, abs(delta[ax_b])/2);
-            if (br_eff < br)
-                echo(str("WARN wire: bend_r ", br, " -> ", br_eff,
-                         " (perp deltas a=", abs(delta[ax_a]),
-                         " b=", abs(delta[ax_b]), ")"));
-            L2 = max(0, abs(delta[ax_a]) - 2*br_eff);
-            L3 = max(0, abs(delta[ax_b]) - 2*br_eff);
-            if (same) {
-                L_total = d_dir1 - 2*br_eff;
-                L1 = max(0, L_total/2);
-                L4 = max(0, L_total - L1);
-                if (L_total < 0)
-                    echo(str("WARN wire same-dir: clamped d_dir1=", d_dir1));
-                _route4(p1, dir1, dir_a, dir_b, dir1, L1, L2, L3, L4, br_eff, r, col);
-            } else {
-                L1 = max(br_eff, d_dir1 + br_eff);
-                L4 = L1 - d_dir1;
-                _route4(p1, dir1, dir_a, dir_b, dir2t, L1, L2, L3, L4, br_eff, r, col);
-            }
-        }
+        _render_path(p1, path[0], path[1], br, r, col);
     }
 }
+
 
 // ====== Multi-core cable on top of wire() ======
 // Routes a `cores`-conductor bundle (single fat wire of diameter
@@ -762,9 +744,10 @@ module solar_chain() {
 
 // ====== Distribution Module (VTPN) ======
 module distribution_module() {
-    // Output MCCB at the bottom of the central busbar
+    // Output MCCB at the bottom of the central busbar -- same module as
+    // the supply MCCB for consistency.
     translate([dist_mccb_x, dist_mccb_y, z_front - dist_mccb[2]])
-        labeled_box(dist_mccb, "OUT MCCB", "darkorange");
+        supply_mccb_v2();
     // Central 4P vertical busbar
     for (i = [0 : 3])
         color("saddlebrown")
@@ -914,7 +897,7 @@ module run_smb_to_stab() {
     // Section 1: MCCB output (splayed) -> left and all the way down to the
     // backplate bottom edge, exiting straight down.
     s1_end    = [left_exit_x,  backplate_y0, mccb_out_p[2]];
-    s2_end    = [right_edge_x, midway_y,     50];
+    s2_end    = [right_edge_x, midway_y,     mccb_out_p[2]];
     stab_in_p = [stab_x + stabilizer[0], stab_ports_y, stab_in_z];
 
     cable_run([
@@ -993,33 +976,53 @@ module run_mccb_to_stab_feed() {
     }
 }
 
-// STAB OUTPUT -> Distribution Output MCCB (4 conductors, RBYN).
-// Path: stab output -> into back-Z behind supply panel -> U-turn anchored
-// at RIGHT end of supply zone -> back LEFT -> UP along left edge in back-Z
-// -> out top of supply zone -> LEFT along upper section into Output MCCB.
+// Stabilizer output -> Distribution OUT MCCB input.
+// Path: from stab_out into the cable nest, loop around the nest perimeter
+// behind the SMB, dive deeper to the backplane layer, run up the left edge
+// of the SMB enclosure, across to the OUT MCCB column, drop down, come
+// forward to the MCCB front face, and splay into the input row.
 module run_stab_to_dist() {
-    return_z_back = slack_z_back + 80;
-    right_anchor  = supply_zone_x + supply_zone_w - 25;
-    left_riser_x  = supply_zone_x + 22;
-    for (i = [0 : 3]) {
-        p_stab    = [supply_zone_x - 3, stab_ports_y - 30 + i * 12, stab_out_z];
-        p_mccb_in = [dist_mccb_x + dist_mccb[0]/2 - 25 + i * 16,
-                     dist_mccb_y - 5, z_mid];
-        polyline_cable([
-            p_stab,
-            [supply_zone_x + 8, stab_ports_y - 30 + i * 12, stab_out_z],
-            [supply_zone_x + 25, stab_ports_y, return_z_back],   // dip back
-            [right_anchor, stab_ports_y, return_z_back],         // RIGHT to anchor
-            [right_anchor, stab_ports_y + 60, return_z_back],    // U-turn around anchor
-            [left_riser_x + 100, stab_ports_y + 60, return_z_back], // back LEFT
-            [left_riser_x, stab_ports_y + 90, return_z_back],
-            [left_riser_x, cutout_h - 30, return_z_back],        // UP along left edge
-            [left_riser_x, cutout_h + 30, z_mid],                // out top, into upper
-            [p_mccb_in[0], cutout_h + 30, z_mid],                // LEFT toward Output MCCB
-            [p_mccb_in[0], dist_mccb_y - 25, z_mid],
-            p_mccb_in
-        ], dia = 14, col = bus_colors[i]);
-    }
+    stab_out_p   = [stab_x + stabilizer[0], stab_ports_y, stab_out_z];
+
+    // Cable nest depth (mid-Z between back sheet and wall).
+    nest_z       = (smb_pos[2] - smb_back_sheet_t) / 2;
+    // Behind the entire enclosure backplane layer.
+    back_z       = enc_t + 8;
+
+    // Nest perimeter (loop) bounds.
+    nest_right_x = enc_x + enc_w - 30;
+    nest_left_x  = smb_zone_x + smb_back_sheet_margin;
+    nest_top_y   = smb_pos[1] + smb_h + smb_back_sheet_margin / 2;
+    nest_bot_y   = smb_pos[1] - smb_back_sheet_margin / 2;
+
+    // OUT MCCB column, with splay bundle anchored 160mm below the input row
+    // (>= splay length of cores*pitch = 140).
+    mccb_cx       = dist_mccb_x + mccb2_w / 2;
+    mccb_anchor_y = dist_mccb_y - 160;
+    dist_mccb_in_p = [mccb_cx, dist_mccb_y + mccb2_y_in, z_front];
+
+    // Each waypoint dir = -travel direction at that point (outward tangent
+    // from the previous-section side), except the first which is +travel.
+    cable_run([
+        [stab_out_p,                                       [ 1, 0, 0]],
+        // Loop perimeter, behind SMB at nest_z:
+        [[nest_right_x, stab_ports_y + 60, nest_z],        [ 0,-1, 0]],   // bot-right (going +Y)
+        [[nest_right_x, nest_top_y  - 60, nest_z],         [ 0,-1, 0]],   // up the right side
+        [[nest_left_x + 60, nest_top_y,    nest_z],        [ 1, 0, 0]],   // top (going -X)
+        [[nest_left_x,  nest_bot_y + 60,   nest_z],        [ 0, 1, 0]],   // down the left side
+        // U-turn through Z into the backplane layer:
+        [[nest_left_x,  nest_bot_y,        back_z],        [ 0,-1, 0]],   // now going +Y at back_z
+        // Up the left edge behind the backplane to the upper section:
+        [[nest_left_x,  dist_y - 60,       back_z],        [ 0,-1, 0]],
+        // Across to the OUT MCCB column:
+        [[mccb_cx + 60, dist_y + 60,       back_z],        [ 1, 0, 0]],   // going -X
+        [[mccb_cx,      mccb_anchor_y,     back_z],        [ 0, 1, 0]],   // going -Y
+        // U-turn through Z to the MCCB front face:
+        [[mccb_cx,      mccb_anchor_y,     z_front],       [ 0,-1, 0]],   // now going +Y at z_front
+        // Up into the splay, fanning across the 4 input bolts:
+        [dist_mccb_in_p,                                   [ 0,-1, 0]],
+    ], cores=4, d=4,
+       spread2=[mccb2_pitch, 0, 0]);
 }
 
 // Solar feed: enters from left-wall duct, runs along top of wall, drops

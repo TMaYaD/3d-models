@@ -418,15 +418,25 @@ function _enum_seqs(N, d1, d2t) =
     (N == 0) ? (d1 == d2t ? [[d1]] : [])
             : _gen_seqs([d1], N+1, d2t);
 
-function _first_feasible(seqs, delta, br, i = 0) =
-    (i >= len(seqs)) ? undef :
+function _sum_list(L, i = 0) = (i >= len(L)) ? 0 : L[i] + _sum_list(L, i+1);
+
+// Among all feasible sequences, pick the one with the smallest total straight
+// length. Ties broken by enumeration order. This prefers paths whose arcs
+// already cover most of the displacement (so segment legs stay short) over
+// paths that overshoot and come back — e.g. the difference between
+// [+Y, +X, -Y, -X, +Y] and [+Y, -X, -Y, -X, +Y] for the same endpoints.
+function _best_feasible(seqs, delta, br, i = 0, best_total = undef, best = undef) =
+    (i >= len(seqs)) ? best :
     let(L = _solve_seq(seqs[i], delta, br))
-    !is_undef(L) ? [seqs[i], L]
-                 : _first_feasible(seqs, delta, br, i+1);
+    is_undef(L) ? _best_feasible(seqs, delta, br, i+1, best_total, best)
+    : let(total = _sum_list(L))
+      (is_undef(best_total) || total < best_total)
+        ? _best_feasible(seqs, delta, br, i+1, total, [seqs[i], L])
+        : _best_feasible(seqs, delta, br, i+1, best_total, best);
 
 function _find_path_n(d1, d2t, delta, br, N, max_N) =
     (N > max_N) ? undef :
-    let(found = _first_feasible(_enum_seqs(N, d1, d2t), delta, br))
+    let(found = _best_feasible(_enum_seqs(N, d1, d2t), delta, br))
     !is_undef(found) ? found
                      : _find_path_n(d1, d2t, delta, br, N+1, max_N);
 
@@ -455,13 +465,12 @@ module _render_path(p_start, seq, lengths, br, r, col) {
 }
 
 module wire(p1, dir1, p2, dir2, r=2, col="black", bend_r=undef) {
-    // dir1, dir2 are OUTWARD tangents: each points FROM its endpoint INTO
-    // the cable interior. Internally we use travel direction; at p2 that's
-    // the negation of dir2.
-    dir2t = _vmul(-1, dir2);
+    // dir1, dir2 are TRAVEL directions: both point along the cable's forward
+    // tangent. dir1 is the direction the cable leaves p1; dir2 is the
+    // direction it arrives at p2 (and would continue, if extended).
     br    = is_undef(bend_r) ? 10*r : bend_r;
     delta = _vsub(p2, p1);
-    path  = _find_path_n(dir1, dir2t, delta, br, 0, _WIRE_MAX_ARCS);
+    path  = _find_path_n(dir1, dir2, delta, br, 0, _WIRE_MAX_ARCS);
     if (is_undef(path)) {
         echo(str("WARN wire: no path within ", _WIRE_MAX_ARCS,
                  " arcs at bend_r=", br,
@@ -478,8 +487,8 @@ module wire(p1, dir1, p2, dir2, r=2, col="black", bend_r=undef) {
 // (1 + sqrt(cores)) * d in sheath_col). Per-core wires inside the sheath
 // are NOT drawn.
 //
-// dir1, dir2: outward tangents at each endpoint (point FROM endpoint INTO
-// the cable). Same convention as wire().
+// dir1, dir2: travel directions at each endpoint (forward cable tangent).
+// Same convention as wire().
 //
 // Splay (optional) via spread1 / spread2 vectors:
 //   spread = [0,0,0]   -> no splay at that end (default)
@@ -507,9 +516,11 @@ module cable(p1, dir1, p2, dir2, cores=4, d=2,
     splen1   = is_undef(splay_length1) ? cores * s1_mag : splay_length1;
     splen2   = is_undef(splay_length2) ? cores * s2_mag : splay_length2;
 
-    // Collection points offset from p1/p2 INTO the cable along dir1/dir2.
-    coll1 = (s1_mag == 0) ? p1 : _vadd(p1, _vmul(splen1, dir1));
-    coll2 = (s2_mag == 0) ? p2 : _vadd(p2, _vmul(splen2, dir2));
+    // Collection points offset from p1/p2 INTO the cable interior. dir1 is
+    // the travel direction leaving p1 (already into the interior); dir2 is
+    // the travel direction arriving at p2 (so subtract to step back inside).
+    coll1 = (s1_mag == 0) ? p1 : _vadd(p1, _vmul( splen1, dir1));
+    coll2 = (s2_mag == 0) ? p2 : _vadd(p2, _vmul(-splen2, dir2));
 
     // Bundle (sheath only)
     wire(coll1, dir1, coll2, dir2, r=R_bundle, col=sheath_col, bend_r=bend_r);
@@ -540,8 +551,10 @@ module cable(p1, dir1, p2, dir2, cores=4, d=2,
 }
 
 // cable_run: chain cable() calls along a list of waypoints. Each waypoint
-// is [p, dir] (position and outward-tangent direction). Splay (spread1/
-// spread2, splay_length1/2) only applies to the first and last waypoints.
+// is [p, dir] where dir is the travel direction (forward tangent) of the
+// cable at that point. Travel is continuous across waypoints, so each
+// waypoint's dir is used as-is by both the prev and next section. Splay
+// (spread1/spread2, splay_length1/2) only applies at the run endpoints.
 module cable_run(waypoints, cores=4, d=2,
                  colors=undef, sheath_col="black", bend_r=undef,
                  spread1=[0,0,0], spread2=[0,0,0],
@@ -550,16 +563,11 @@ module cable_run(waypoints, cores=4, d=2,
     for (i = [0 : n - 2]) {
         a = waypoints[i];
         b = waypoints[i + 1];
-        // Waypoint dir is the outward-tangent (cable interior direction) from
-        // the perspective of the PREVIOUS section. For the next section's p1
-        // we need the opposite (interior direction from the OTHER side). The
-        // first waypoint is only a "start" so it stays as-is.
-        d1 = (i == 0) ? a[1] : [-a[1][0], -a[1][1], -a[1][2]];
         sp1 = (i == 0)     ? spread1 : [0, 0, 0];
         sp2 = (i == n - 2) ? spread2 : [0, 0, 0];
         sl1 = (i == 0)     ? splay_length1 : undef;
         sl2 = (i == n - 2) ? splay_length2 : undef;
-        cable(a[0], d1, b[0], b[1],
+        cable(a[0], a[1], b[0], b[1],
               cores=cores, d=d,
               colors=colors, sheath_col=sheath_col, bend_r=bend_r,
               spread1=sp1, spread2=sp2,
@@ -728,8 +736,8 @@ module run_conduit_to_smb_lower() {
     p2 = [smb_pos[0] + (bus2_total_w - bus2_bar_w)/2 + bus2_bar_w/2,
           smb_pos[1] + bus2_hole_y_lo,
           smb_pos[2] + bus2_ins_t + bus2_bar_t];
-    cable(supply_conduit_top, [0,  1, 0],
-          p2,                 [0, -1, 0],
+    cable(supply_conduit_top, [0, 1, 0],
+          p2,                 [0, 1, 0],
           cores=4, d=4,
           spread2=[bus2_pole_pitch, 0, 0]);
 }
@@ -767,10 +775,9 @@ module run_smb_to_stab() {
 
     cable_run([
         [mccb_out_p, [0,  1, 0]],   // out of MCCB lugs, going up
-        [s1_end,     [0,  1, 0]],   // exit backplate bottom, going down
-        [s2_end,     [0,  1, 0]],   // bottom-right, going down
-        
-        [stab_in_p,  [1,  0, 0]],   // into stabilizer from +X
+        [s1_end,     [0, -1, 0]],   // exit backplate bottom, going down
+        [s2_end,     [0, -1, 0]],   // bottom-right, going down
+        [stab_in_p,  [-1, 0, 0]],   // into stabilizer, going -X
     ], cores=4, d=4,
        spread1=[mccb2_pitch, 0, 0]);
 }
@@ -787,6 +794,8 @@ module run_stab_to_dist() {
     nest_z       = (smb_pos[2] - smb_back_sheet_t) / 2;
     // Behind the entire enclosure backplane layer.
     back_z       = enc_t + 8;
+    backplate_y0   = smb_pos[1] - smb_back_sheet_margin;
+
 
     // Nest perimeter (loop) bounds.
     nest_right_x = enc_x + enc_w - 30;
@@ -800,26 +809,25 @@ module run_stab_to_dist() {
     mccb_anchor_y = dist_mccb_y - 160;
     dist_mccb_in_p = [mccb_cx, dist_mccb_y + mccb2_y_in, z_front];
 
-    // Each waypoint dir = -travel direction at that point (outward tangent
-    // from the previous-section side), except the first which is +travel.
+    // Each waypoint dir = travel direction (forward tangent) at that point.
     cable_run([
         [stab_out_p,                                       [ 1, 0, 0]],
         // Loop perimeter, behind SMB at nest_z:
-        [[nest_right_x, stab_ports_y + 60, nest_z],        [ 0,-1, 0]],   // bot-right (going +Y)
-        [[nest_right_x, nest_top_y  - 60, nest_z],         [ 0,-1, 0]],   // up the right side
-        [[nest_left_x + 60, nest_top_y,    nest_z],        [ 1, 0, 0]],   // top (going -X)
-        [[nest_left_x,  nest_bot_y + 60,   nest_z],        [ 0, 1, 0]],   // down the left side
-        // U-turn through Z into the backplane layer:
-        [[nest_left_x,  nest_bot_y,        back_z],        [ 0,-1, 0]],   // now going +Y at back_z
-        // Up the left edge behind the backplane to the upper section:
-        [[nest_left_x,  dist_y - 60,       back_z],        [ 0,-1, 0]],
-        // Across to the OUT MCCB column:
-        [[mccb_cx + 60, dist_y + 60,       back_z],        [ 1, 0, 0]],   // going -X
-        [[mccb_cx,      mccb_anchor_y,     back_z],        [ 0, 1, 0]],   // going -Y
+        [[nest_right_x, stab_out_p[1], stab_out_p[2]],     [ 0, 1, 0]],    // bot-right, turning to +Y
+        [[smb_zone_x,  backplate_y0, stab_out_p[2]],       [ 0, 1, 0]],    // up the right side
+//        [[nest_left_x + 60, nest_top_y,    nest_z],        [-1, 0, 0]],   // top (going -X)
+//        [[nest_left_x,  nest_bot_y + 60,   nest_z],        [ 0,-1, 0]],   // down the left side
+//        // U-turn through Z into the backplane layer:
+//        [[nest_left_x,  nest_bot_y,        back_z],        [ 0, 1, 0]],   // now going +Y at back_z
+//        // Up the left edge behind the backplane to the upper section:
+//        [[nest_left_x,  dist_y - 60,       back_z],        [ 0, 1, 0]],
+//        // Across to the OUT MCCB column:
+//        [[mccb_cx + 60, dist_y + 60,       back_z],        [-1, 0, 0]],   // going -X
+//        [[mccb_cx,      mccb_anchor_y,     back_z],        [ 0,-1, 0]],   // going -Y
         // U-turn through Z to the MCCB front face:
-        [[mccb_cx,      mccb_anchor_y,     z_front],       [ 0,-1, 0]],   // now going +Y at z_front
+        [[mccb_cx,      mccb_anchor_y,     z_front],       [ 0, 1, 0]],    // now going +Y at z_front
         // Up into the splay, fanning across the 4 input bolts:
-        [dist_mccb_in_p,                                   [ 0,-1, 0]],
+        [dist_mccb_in_p,                                   [ 0, 1, 0]],
     ], cores=4, d=4,
        spread2=[mccb2_pitch, 0, 0]);
 }
@@ -1002,7 +1010,7 @@ module dimensions() {
     supply_conduit();
     conduit_row();
 
-    run_stab_to_dist();
+    !run_stab_to_dist();
     run_solar_in();
     run_sdb_to_inv();
     run_inv_to_acdb();

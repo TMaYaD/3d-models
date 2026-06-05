@@ -144,6 +144,20 @@ dist_bb_z       = 15;
 
 mcb_left_x      = dist_bb_x - mcb_unit[0] - 30;
 mcb_right_x     = dist_bb_x + dist_bb_w + 30;
+
+// Neutral & Ground bars, on either side of the MCB banks. The 3-phase MCBs
+// only carry the three phases off the bus; N and G come from these bars.
+// Order outside-in: Ground - Neutral - MCB - BUS - MCB - Neutral - Ground.
+dist_n_w        = 20;
+dist_g_w        = 20;
+dist_bar_gap    = 25;       // gap to adjacent MCB / neutral
+dist_bar_t      = 15;       // Z thickness
+dist_bar_z      = enc_t + 25;
+
+dist_n_l_x      = mcb_left_x - dist_bar_gap - dist_n_w;
+dist_g_l_x      = dist_n_l_x - dist_bar_gap - dist_g_w;
+dist_n_r_x      = mcb_right_x + mcb_unit[0] + dist_bar_gap;
+dist_g_r_x      = dist_n_r_x + dist_n_w + dist_bar_gap;
 mcb_block_h     = mcb_per_side * mcb_unit[1];
 mcbs_y          = dist_bb_y + 40;
 dist_bb_h       = mcb_block_h + 80;          // busbar slightly taller than MCB block
@@ -679,6 +693,16 @@ module distribution_module() {
         color("black")
             translate([mcb_right_x, mcbs_y + i * mcb_unit[1], enc_t + 20])
                 cube([mcb_unit[0] - 2, mcb_unit[1] - 2, mcb_unit[2]]);
+    // Neutral bars (one each side, outside the MCB banks)
+    for (x = [dist_n_l_x, dist_n_r_x])
+        color("blue")
+            translate([x, mcbs_y, dist_bar_z])
+                cube([dist_n_w, mcb_block_h, dist_bar_t]);
+    // Ground bars (outermost on each side)
+    for (x = [dist_g_l_x, dist_g_r_x])
+        color("green")
+            translate([x, mcbs_y, dist_bar_z])
+                cube([dist_g_w, mcb_block_h, dist_bar_t]);
     color("white")
         translate([dist_x + 10, dist_y + dist_h - 15,
                    enc_t + mcb_unit[2] + 25])
